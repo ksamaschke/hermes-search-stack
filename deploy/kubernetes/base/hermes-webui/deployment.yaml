@@ -103,6 +103,9 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+              # Same s6-overlay base image as the agent: s6-applyuidgid needs
+              # SETUID/SETGID to drop privileges, or the supervision tree dies.
+              add: ["SETUID", "SETGID"]
       volumes:
         - name: data
           persistentVolumeClaim:

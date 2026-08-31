@@ -168,6 +168,11 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+              # s6-overlay supervises services and calls s6-applyuidgid to
+              # drop to the hermes user. With ALL capabilities dropped that
+              # fails with "unable to set supplementary group list:
+              # Operation not permitted" and the gateway never binds 8642.
+              add: ["SETUID", "SETGID"]
       volumes:
         - name: data
           persistentVolumeClaim:
