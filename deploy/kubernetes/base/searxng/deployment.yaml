@@ -54,6 +54,11 @@ spec:
             # SearXNG writes a rewritten settings file + caches at boot.
             - name: run
               mountPath: /var/cache/searxng
+            # Python's tempfile module needs a writable /tmp. With
+            # readOnlyRootFilesystem this must be an explicit tmpfs, or the
+            # worker dies with "No usable temporary directory found".
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /healthz
@@ -84,6 +89,10 @@ spec:
             name: searxng-settings
         - name: run
           emptyDir: {}
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
 ---
 apiVersion: apps/v1
 kind: Deployment

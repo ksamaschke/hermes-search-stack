@@ -95,7 +95,7 @@ spec:
           resources:
             requests:
               cpu: 250m
-              memory: 1Gi
+              memory: 512Mi
             limits:
               cpu: "2"
               memory: 4Gi
@@ -147,7 +147,7 @@ spec:
           resources:
             requests:
               cpu: 250m
-              memory: 1Gi
+              memory: 512Mi
             limits:
               cpu: "2"
               memory: 4Gi
@@ -288,7 +288,12 @@ spec:
         app.kubernetes.io/name: firecrawl-nuq-postgres
         app.kubernetes.io/part-of: hermes-search-stack
     spec:
+      # The postgres entrypoint must start as root to chown PGDATA and
+      # /var/run/postgresql; it then drops to the postgres user itself via
+      # gosu. Forcing runAsNonRoot here makes it crash-loop on
+      # "Operation not permitted".
       securityContext:
+        fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -328,6 +333,8 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+              # The entrypoint chowns PGDATA before dropping privileges.
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID"]
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
