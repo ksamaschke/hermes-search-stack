@@ -21,6 +21,28 @@ plugins:
     # rather than a fix, but it keeps the startup log readable.
     - openrouter
     - browser-browserbase
+    # Everything below is dead weight for a search stack and is where startup
+    # actually goes. Measured from the in-cluster log, a single boot spent
+    # 269s registering browser-browser-use, 128s and 119s on deepinfra, plus
+    # 105s and 66s in check_browser_* capability probes - all for providers
+    # this stack has no credentials for and never calls. The registry probes
+    # each one anyway ("check_fn ... returned False; dependent tools will be
+    # unavailable"), and every probe is CPU-bound: the gateway holds ~1.5-2.4
+    # cores on a single thread while doing it.
+    #
+    # We need exactly two web providers (searxng, firecrawl) and a chat model.
+    # Browser automation and image/video generation are not part of this stack.
+    #
+    # Names verified against the plugin.yaml manifests in the image; the loader
+    # matches on either the path-derived key or the bare manifest name
+    # (plugins.py: `if lookup_key in disabled or manifest.name in disabled`).
+    - browser-browser-use
+    - browser-firecrawl   # the browser variant; web-firecrawl is the one we use
+    - deepinfra           # image_gen/deepinfra
+    - fal
+    - krea
+    - openai-codex
+    - xai                 # image_gen/xai
 
 security:
   # Turn OFF runtime pip installs.
