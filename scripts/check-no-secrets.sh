@@ -42,11 +42,12 @@ while IFS= read -r f; do
   fi
 done < <(git ls-files '*.yaml' '*.yml' || true)
 
-# 5. The homelab hostnames / internal endpoints must not leak into the
-#    public repo. Keep this list in sync with your private overlay.
-if git grep -InE '(homelab\.samaschke\.de|racktaq|vanillacore)' -- . >/dev/null 2>&1; then
+# 5. Internal hostnames must not leak into the public repo. Assembled at
+#    runtime so this script does not match its own pattern definition.
+INTERNAL="$(printf 'homelab\.samaschke\.de|%s|%s' 'rackt''aq' 'vanilla''core')"
+if git grep -InE "$INTERNAL" -- . ':!scripts/check-no-secrets.sh' >/dev/null 2>&1; then
   note "internal hostname leaked into public repo:"
-  git grep -InE '(homelab\.samaschke\.de|racktaq|vanillacore)' -- .
+  git grep -InE "$INTERNAL" -- . ':!scripts/check-no-secrets.sh'
 fi
 
 if [[ "$FAIL" -eq 0 ]]; then
