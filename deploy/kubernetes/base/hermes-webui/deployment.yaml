@@ -86,7 +86,11 @@ spec:
               path: /login
               port: http
             initialDelaySeconds: 20
-            periodSeconds: 10
+            periodSeconds: 15
+            # The WebUI is a threaded stdlib HTTP server and renders /login in
+            # ~3s on a loaded node. The default 1s timeout marks a working
+            # service unready and floods the log with BrokenPipeError.
+            timeoutSeconds: 15
             failureThreshold: 12
           resources:
             requests:

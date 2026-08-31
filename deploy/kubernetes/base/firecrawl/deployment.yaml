@@ -45,6 +45,11 @@ spec:
               value: "3004"
             - name: ENV
               value: "local"
+            # The harness boots the API plus ten workers, then waits for port
+            # 3002. On a busy node 60s is not enough and it exits fatally with
+            # "Port 3002 did not become available".
+            - name: HARNESS_STARTUP_TIMEOUT_MS
+              value: "300000"
             # Self-hosted: no credit metering, no Firecrawl account. The API is
             # UNAUTHENTICATED, which is why it is a ClusterIP service with a
             # NetworkPolicy and is never exposed through an ingress.
@@ -89,9 +94,12 @@ spec:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            failureThreshold: 12
+            # The harness boots the API plus ten worker processes before the
+            # port opens; give it room on a loaded node.
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 20
           resources:
             requests:
               cpu: 250m
@@ -249,9 +257,13 @@ spec:
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "check_running"]
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            failureThreshold: 6
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            # rabbitmq-diagnostics starts a short-lived Erlang node to query
+            # the broker; that regularly needs more than the default 1s and
+            # the probe then fails a healthy broker with "command timed out".
+            timeoutSeconds: 30
+            failureThreshold: 10
           resources:
             requests:
               cpu: 100m

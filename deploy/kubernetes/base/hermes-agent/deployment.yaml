@@ -151,7 +151,15 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: hermes-agent-data
+        # bootstrap.py and config.yaml.partial live in two separate
+        # ConfigMaps but the script reads both from /bootstrap, so they must
+        # be projected into a single directory. Mounting only one ConfigMap
+        # here makes the init container die on FileNotFoundError.
         - name: bootstrap
-          configMap:
-            name: hermes-agent-bootstrap
+          projected:
             defaultMode: 0555
+            sources:
+              - configMap:
+                  name: hermes-agent-bootstrap
+              - configMap:
+                  name: hermes-agent-config
