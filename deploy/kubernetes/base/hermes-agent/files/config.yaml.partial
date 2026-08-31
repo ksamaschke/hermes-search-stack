@@ -6,6 +6,23 @@ model:
   base_url: ${HERMES_MODEL_BASE_URL}
   key_env: HERMES_GATEWAY_API_KEY
 
+gateway:
+  # OpenAI-compatible endpoint that Open WebUI and the Hermes WebUI consume.
+  # Written explicitly rather than relying on the API_SERVER_* environment
+  # variables alone: under `hermes gateway run` those did not bind the
+  # listener, and port 8642 stayed closed with the gateway process up.
+  # host 0.0.0.0 is required so the Service can reach it - the default
+  # 127.0.0.1 is only reachable inside the pod's own netns.
+  api_server:
+    enabled: true
+    host: 0.0.0.0
+    port: 8642
+    # The key itself is NOT written here. API_SERVER_KEY is injected from the
+    # hermes-agent-secrets Secret and environment variables take precedence
+    # over config.yaml, so the secret never touches disk.
+    model_name: hermes-agent
+    max_concurrent_runs: 10
+
 web:
   # Explicit per-capability routing. This MUST be set explicitly:
   # Hermes' env auto-detection ranks FIRECRAWL_API_URL ABOVE SEARXNG_URL,
