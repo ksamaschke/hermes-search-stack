@@ -122,19 +122,29 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /opt/data
+            # s6-overlay refuses to start unless /run is writable and owned by
+            # the container uid: "/run belongs to uid 0 ... and we're lacking
+            # the privileges to fix it". The image's /run is root-owned, so
+            # give it an emptyDir that fsGroup makes group-writable.
+            - name: run
+              mountPath: /run
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /health
               port: api
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 12
           livenessProbe:
             httpGet:
               path: /health
               port: api
-            initialDelaySeconds: 90
+            initialDelaySeconds: 120
             periodSeconds: 30
+            timeoutSeconds: 10
             failureThreshold: 5
           resources:
             requests:
@@ -163,3 +173,11 @@ spec:
                   name: hermes-agent-bootstrap
               - configMap:
                   name: hermes-agent-config
+        # s6-overlay writes its supervision tree into /run at startup.
+        - name: run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
