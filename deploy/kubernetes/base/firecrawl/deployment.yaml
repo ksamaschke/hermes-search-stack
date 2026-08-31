@@ -90,16 +90,23 @@ spec:
               value: "3"
             - name: LOGGING_LEVEL
               value: "info"
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            # The harness boots the API plus ten worker processes before the
+            # port opens; allow up to 10 minutes on a loaded node.
+            failureThreshold: 40
           readinessProbe:
             httpGet:
               path: /
               port: http
-            # The harness boots the API plus ten worker processes before the
-            # port opens; give it room on a loaded node.
-            initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 10
-            failureThreshold: 20
+            failureThreshold: 6
           resources:
             requests:
               cpu: 250m

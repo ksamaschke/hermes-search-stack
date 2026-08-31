@@ -130,19 +130,30 @@ spec:
               mountPath: /run
             - name: tmp
               mountPath: /tmp
-          readinessProbe:
+          # Boot is genuinely slow: s6 runs cont-init, syncs 82 bundled
+          # skills onto the PVC and resolves a Chromium binary before the
+          # gateway binds 8642. Without a startupProbe the liveness probe
+          # kills the container mid-boot (exit 137) and it never converges.
+          startupProbe:
             httpGet:
               path: /health
               port: api
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 10
-            failureThreshold: 12
+            # 60 * 15s = up to 15 minutes for a first boot on a cold PVC.
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: api
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /health
               port: api
-            initialDelaySeconds: 120
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 5
