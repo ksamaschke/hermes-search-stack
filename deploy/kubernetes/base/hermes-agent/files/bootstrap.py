@@ -63,6 +63,18 @@ def prune(node):
 
 merged = prune(merged)
 
+# Remove the legacy `gateway.api_server` block. An earlier revision of this
+# stack wrote the API server there; the deep merge preserves whatever is
+# already on the PVC, so that stale block survives upgrades and shadows the
+# supported `gateway.platforms.api_server` shape - the platform never enrolls
+# and 8642 stays closed. Only drop it when we own the replacement.
+gw = merged.get("gateway")
+if isinstance(gw, dict) and "api_server" in gw:
+    platforms_block = gw.get("platforms")
+    if isinstance(platforms_block, dict) and "api_server" in platforms_block:
+        gw.pop("api_server", None)
+        print("dropped legacy gateway.api_server block", flush=True)
+
 cfg_path.write_text(yaml.safe_dump(merged, sort_keys=False))
 # config.yaml now carries the API server key (the gateway's platform checker
 # reads it from platforms.api_server.extra.key), so keep it owner-only.
