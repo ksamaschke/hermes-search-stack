@@ -206,18 +206,26 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 10
-            # 40 * 30s = 20 minutes, on top of the 60s delay.
+            # 120 * 30s = 60 minutes, on top of the 60s delay.
             #
-            # The previous budget (30s + 60*15s) expired mid plugin discovery:
-            # the kubelet killed the container with exit 137 and restarted it,
-            # which presented exactly like an application-level discovery loop
-            # - 19 "Plugin discovery complete" lines, the gateway pid resetting
-            # every few minutes, 8642 never bound. It was the probe deadline.
+            # This is deliberately enormous. Boot on this cluster is slow for
+            # structural reasons, not because anything is broken: the gvisor
+            # RuntimeClass carries scheduling.nodeSelector gvisor-enabled=true
+            # and exactly one node has that label, so hermes-agent,
+            # firecrawl-api and firecrawl-playwright all contend for the same
+            # 4 CPUs, and every syscall pays the gVisor tax on top.
             #
-            # Discovery competes with firecrawl-api and playwright for the same
-            # 4 CPUs, because the gvisor RuntimeClass pins every sandboxed
-            # workload in this cluster to one labelled node.
-            failureThreshold: 40
+            # Earlier budgets (15min, then 21min) expired mid-boot. The kubelet
+            # killed the container and restarted it, which presented exactly
+            # like an application-level discovery loop: repeated "Plugin
+            # discovery complete" lines, the gateway pid resetting, 8642 never
+            # bound. It was always this probe.
+            #
+            # The startup probe is not a health signal, it is a deadline for
+            # reaching healthy. Getting it wrong manufactures the outage it is
+            # supposed to catch. Liveness (5 * 30s) still handles a genuinely
+            # wedged process once startup has succeeded.
+            failureThreshold: 120
           readinessProbe:
             httpGet:
               path: /health
