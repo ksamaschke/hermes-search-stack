@@ -118,6 +118,26 @@ spec:
           env:
             - name: HERMES_HOME
               value: /opt/data
+            # --- Kill runtime pip installs ----------------------------------
+            #
+            # The image already sets HERMES_DISABLE_LAZY_INSTALLS=1, but that
+            # seal is conditional: lazy_deps._allow_lazy_installs() returns
+            # `_lazy_install_target() is not None`, so installs are ALLOWED
+            # again whenever a durable target is configured - and the image
+            # points that at /opt/data, which is our writable PVC.
+            #
+            # The result was a gateway that hung at boot on
+            # "Lazy-installing edge-tts==7.2.7", pinned at 100% CPU holding
+            # zero sockets, never reaching the 8642 bind while s6 happily
+            # reported the service as up.
+            #
+            # An empty value resolves to None (_lazy_install_target() strips
+            # and treats "" as unset), which re-arms the image's seal. This is
+            # deliberately enforced via env as well as via
+            # security.allow_lazy_installs in config.yaml: config lives on the
+            # PVC and can be shadowed by stale state, env cannot.
+            - name: HERMES_LAZY_INSTALL_TARGET
+              value: ""
             - name: HERMES_UID
               value: "10000"
             - name: HERMES_GID

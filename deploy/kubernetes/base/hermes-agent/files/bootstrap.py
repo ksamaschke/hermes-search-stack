@@ -29,6 +29,20 @@ for key, value in os.environ.items():
 
 desired = yaml.safe_load(partial_raw) or {}
 
+# Guard against duplicate top-level keys in the partial. PyYAML silently keeps
+# the LAST occurrence, so a second `security:` block further down the file
+# quietly discarded allow_lazy_installs and the gateway kept pip-installing at
+# boot. Fail loudly instead of shipping a config that lost half its keys.
+_seen, _dupes = set(), set()
+for _line in partial_raw.splitlines():
+    if _line[:1].isalpha() and _line.rstrip().endswith(":"):
+        _key = _line.split(":", 1)[0].strip()
+        if _key in _seen:
+            _dupes.add(_key)
+        _seen.add(_key)
+if _dupes:
+    sys.exit(f"duplicate top-level key(s) in config.yaml.partial: {sorted(_dupes)}")
+
 current = {}
 if cfg_path.exists():
     try:
@@ -63,11 +77,54 @@ def prune(node):
 
 merged = prune(merged)
 
-# Remove the legacy `gateway.api_server` block. An earlier revision of this
-# stack wrote the API server there; the deep merge preserves whatever is
-# already on the PVC, so that stale block survives upgrades and shadows the
-# supported `gateway.platforms.api_server` shape - the platform never enrolls
-# and 8642 stays closed. Only drop it when we own the replacement.
+# --- Managed paths: the ConfigMap wins, always -------------------------------
+#
+# config.yaml lives on the PVC and is deep-merged, which means pre-existing
+# state SHADOWS anything this stack introduces. That bit us twice:
+#
+#   * a legacy `gateway.api_server` block survived upgrades and shadowed the
+#     supported `gateway.platforms.api_server` shape, so the platform never
+#     enrolled and 8642 stayed closed;
+#   * `security:` already existed on the PVC (allow_private_urls), so a newly
+#     added `security.allow_lazy_installs: false` was silently dropped and the
+#     gateway kept pip-installing at boot.
+#
+# Both were the same bug: deep_merge cannot introduce a key into a block the
+# PVC already owns. So rather than special-casing each incident, enforce the
+# leaf paths this stack owns. Everything else the user set is still preserved.
+MANAGED_PATHS = [
+    ("web", "search_backend"),
+    ("web", "extract_backend"),
+    ("security", "allow_lazy_installs"),
+    ("gateway", "platforms", "api_server"),
+]
+
+def get_path(node, path):
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return None, False
+        node = node[key]
+    return node, True
+
+def set_path(node, path, value):
+    for key in path[:-1]:
+        nxt = node.get(key)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            node[key] = nxt
+        node = nxt
+    node[path[-1]] = value
+
+for path in MANAGED_PATHS:
+    want, present = get_path(desired, path)
+    if not present:
+        continue
+    have, _ = get_path(merged, path)
+    if have != want:
+        set_path(merged, path, want)
+        print(f"enforced managed path {'.'.join(path)}", flush=True)
+
+# Retire the legacy API-server location once the supported one is in place.
 gw = merged.get("gateway")
 if isinstance(gw, dict) and "api_server" in gw:
     platforms_block = gw.get("platforms")
