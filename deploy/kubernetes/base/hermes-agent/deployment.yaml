@@ -194,11 +194,21 @@ spec:
             httpGet:
               path: /health
               port: api
-            initialDelaySeconds: 30
-            periodSeconds: 15
+            initialDelaySeconds: 60
+            periodSeconds: 30
             timeoutSeconds: 10
-            # 60 * 15s = up to 15 minutes for a first boot on a cold PVC.
-            failureThreshold: 60
+            # 40 * 30s = 20 minutes, on top of the 60s delay.
+            #
+            # The previous budget (30s + 60*15s) expired mid plugin discovery:
+            # the kubelet killed the container with exit 137 and restarted it,
+            # which presented exactly like an application-level discovery loop
+            # - 19 "Plugin discovery complete" lines, the gateway pid resetting
+            # every few minutes, 8642 never bound. It was the probe deadline.
+            #
+            # Discovery competes with firecrawl-api and playwright for the same
+            # 4 CPUs, because the gvisor RuntimeClass pins every sandboxed
+            # workload in this cluster to one labelled node.
+            failureThreshold: 40
           readinessProbe:
             httpGet:
               path: /health
