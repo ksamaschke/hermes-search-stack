@@ -6,6 +6,21 @@ model:
   base_url: ${HERMES_MODEL_BASE_URL}
   key_env: HERMES_GATEWAY_API_KEY
 
+security:
+  # Turn OFF runtime pip installs.
+  #
+  # The image sets HERMES_DISABLE_LAZY_INSTALLS=1, but that only seals the
+  # agent venv: it also sets HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages,
+  # and /opt/data is our writable PVC. So the gateway happily pip-installs
+  # optional extras (edge-tts, ...) on every boot. Under gVisor that is slow
+  # enough to eat the entire startup window - the process sits at 100% CPU
+  # holding zero sockets and never reaches the API server bind, so 8642 stays
+  # closed while s6 reports the service healthy.
+  #
+  # allow_lazy_installs: false is the documented opt-out that disables installs
+  # in BOTH modes. Optional extras belong in a derived image, not on the PVC.
+  allow_lazy_installs: false
+
 gateway:
   # OpenAI-compatible endpoint that Open WebUI and the Hermes WebUI consume.
   #
