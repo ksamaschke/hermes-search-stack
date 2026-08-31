@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-agent-data
+  labels:
+    app.kubernetes.io/name: hermes-agent
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  accessModes:
+    # ReadWriteOnce is required: hermes-agent and hermes-webui share this volume
+    # and are therefore pinned to the same node via podAffinity (see
+    # hermes-webui/deployment.yaml). Longhorn RWX would need a share-manager pod.
+    - ReadWriteOnce
+  # Overridden by overlays. Longhorn is the default in the reference homelab;
+  # any RWO-capable StorageClass works.
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi

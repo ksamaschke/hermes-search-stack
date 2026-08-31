@@ -1,0 +1,64 @@
+# Plain networking.k8s.io Ingress objects — portable across controllers.
+# Contour users may prefer HTTPProxy; nginx users may need different
+# annotations. Only the two UIs are exposed. SearXNG and Firecrawl stay
+# cluster-internal.
+#
+# SearXNG's own UI is deliberately NOT published here: in this stack it is an
+# API for the agent and Open WebUI. Add an Ingress for it only if you want the
+# human-facing metasearch page, and put auth in front of it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-webui
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - chat.example.com
+      secretName: open-webui-tls
+  rules:
+    - host: chat.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: open-webui
+                port:
+                  number: 8080
+---
+# The Hermes admin UI can execute arbitrary commands as the agent.
+# Expose it on a separate hostname, keep it password-protected, and prefer
+# restricting it to an internal network or VPN.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hermes-webui
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+  labels:
+    app.kubernetes.io/name: hermes-webui
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - admin.example.com
+      secretName: hermes-webui-tls
+  rules:
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes-webui
+                port:
+                  number: 8787

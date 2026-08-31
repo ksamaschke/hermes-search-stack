@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace is NOT set here so overlays own it.
+resources:
+  - searxng
+  - firecrawl
+  - hermes-agent
+  - hermes-webui
+  - open-webui
+  - networkpolicy.yaml
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: hermes-search-stack

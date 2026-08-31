@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - pvc.yaml
+  - runtime-configmap.yaml
+  - deployment.yaml
+  - service.yaml
+
+configMapGenerator:
+  - name: hermes-agent-bootstrap
+    files:
+      - files/bootstrap.py
+  - name: hermes-agent-config
+    files:
+      - config.yaml.partial=files/config.yaml.partial
+
+generatorOptions:
+  # Stable names: the deployment references these by fixed name, and a hash
+  # suffix would also force a pod restart on every unrelated re-render.
+  disableNameSuffixHash: true

@@ -1,0 +1,161 @@
+# Default-deny ingress for the namespace, then explicit allows. This matters
+# most for firecrawl-api, which runs UNAUTHENTICATED
+# (USE_DB_AUTHENTICATION=false) and must never be reachable from outside.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Firecrawl API: only the two in-stack consumers may call it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-api-allow-stack
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: open-webui
+      ports:
+        - protocol: TCP
+          port: 3002
+---
+# Firecrawl internals: only reachable from Firecrawl's own components.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-internal
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - firecrawl-playwright
+          - firecrawl-redis
+          - firecrawl-rabbitmq
+          - firecrawl-nuq-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firecrawl-api
+---
+# SearXNG: consumed by the agent, Open WebUI, Firecrawl, and (optionally) an
+# ingress controller for the human-facing search page.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: searxng-allow-stack
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: searxng
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: open-webui
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firecrawl-api
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: searxng-valkey-internal
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: searxng-valkey
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: searxng
+---
+# Hermes gateway API: Open WebUI is the model consumer; the WebUI probes health.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hermes-agent-allow-stack
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: open-webui
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-webui
+      ports:
+        - protocol: TCP
+          port: 8642
+---
+# The two human-facing UIs accept traffic from the ingress controller.
+# NOTE: adjust the namespaceSelector label to match your ingress controller's
+# namespace. Contour uses `projectcontour`; ingress-nginx uses `ingress-nginx`.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ui-allow-ingress
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - open-webui
+          - hermes-webui
+          - searxng
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              hermes-search-stack.io/ingress: "true"

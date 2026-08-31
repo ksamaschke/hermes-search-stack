@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: firecrawl-api
+  labels:
+    app.kubernetes.io/name: firecrawl-api
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: firecrawl-api
+  ports:
+    - name: http
+      port: 3002
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: firecrawl-playwright
+  labels:
+    app.kubernetes.io/name: firecrawl-playwright
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: firecrawl-playwright
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: firecrawl-redis
+  labels:
+    app.kubernetes.io/name: firecrawl-redis
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: firecrawl-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: firecrawl-rabbitmq
+  labels:
+    app.kubernetes.io/name: firecrawl-rabbitmq
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: firecrawl-rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: firecrawl-nuq-postgres
+  labels:
+    app.kubernetes.io/name: firecrawl-nuq-postgres
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: firecrawl-nuq-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

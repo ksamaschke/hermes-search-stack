@@ -1,0 +1,18 @@
+# Secrets - never commit
+.env
+!.env.example
+*.key
+*.pem
+secrets.yaml
+secret-*.yaml
+
+# Local overlays users create from the example
+deploy/kubernetes/overlays/mine/
+deploy/kubernetes/overlays/local/
+deploy/kubernetes/overlays/private/
+
+# Build/test artefacts
+*.log
+/tmp/
+.DS_Store
+rendered.yaml

@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-webui
+  labels:
+    app.kubernetes.io/name: hermes-webui
+    app.kubernetes.io/component: admin-ui
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-webui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes-webui
+        app.kubernetes.io/component: admin-ui
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      # The WebUI shares the agent's HERMES_HOME (RWO PVC), so it must land on
+      # the same node as the agent pod.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: hermes-agent
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: hermes-webui
+          image: ghcr.io/nesquena/hermes-webui:0.38.5@sha256:bfd85f546c3aa282c65107ce15d348a9d87f2c8b6594d46ae60e0d06dd1964c9
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8787
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HERMES_WEBUI_HOST
+              value: "0.0.0.0"
+            - name: HERMES_WEBUI_PORT
+              value: "8787"
+            - name: HERMES_WEBUI_STATE_DIR
+              value: /opt/data/webui
+            - name: WANTED_UID
+              value: "10000"
+            - name: WANTED_GID
+              value: "10000"
+            # This UI can run arbitrary commands as the agent. It is NEVER
+            # exposed without a password; the overlay must supply one.
+            - name: HERMES_WEBUI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-webui-secrets
+                  key: password
+            # Behind an ingress/reverse proxy terminating TLS.
+            - name: HERMES_WEBUI_SECURE
+              value: "1"
+            - name: HERMES_WEBUI_TRUST_FORWARDED_HOST
+              value: "1"
+            - name: HERMES_WEBUI_TRUST_FORWARDED_PROTO
+              value: "1"
+            - name: HERMES_WEBUI_ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-webui-runtime
+                  key: allowed-origins
+            # Health/cron probe against the agent's gateway API.
+            - name: HERMES_API_URL
+              value: "http://hermes-agent:8642"
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-agent-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-webui
+  labels:
+    app.kubernetes.io/name: hermes-webui
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hermes-webui
+  ports:
+    - name: http
+      port: 8787
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-webui-runtime
+  labels:
+    app.kubernetes.io/name: hermes-webui
+    app.kubernetes.io/part-of: hermes-search-stack
+data:
+  # Public origin(s) the admin UI is served on. Overlays override this.
+  allowed-origins: "http://localhost:8787"

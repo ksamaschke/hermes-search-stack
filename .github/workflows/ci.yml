@@ -1,0 +1,102 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  secrets:
+    name: no committed secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: repo secret check
+        run: ./scripts/check-no-secrets.sh
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  kustomize:
+    name: manifests build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install kustomize
+        run: |
+          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          kustomize version
+      - name: build base
+        run: kustomize build deploy/kubernetes/base > /tmp/base.yaml && grep -c '^kind:' /tmp/base.yaml
+      - name: build sandboxed overlay
+        run: kustomize build deploy/kubernetes/overlays/sandboxed > /tmp/sandboxed.yaml
+      - name: build example overlay
+        run: kustomize build deploy/kubernetes/overlays/example > /tmp/example.yaml
+      - name: assert sandboxed overlay sets a RuntimeClass
+        run: |
+          count=$(grep -c 'runtimeClassName' /tmp/sandboxed.yaml)
+          echo "runtimeClassName occurrences: $count"
+          [ "$count" -eq 3 ] || { echo "expected 3 sandboxed workloads"; exit 1; }
+      - name: assert every image is digest-pinned
+        run: |
+          # Any `image:` without an @sha256: pin is a floating tag.
+          if grep -E '^\s+image:' /tmp/example.yaml | grep -v '@sha256:'; then
+            echo "unpinned image found"; exit 1
+          fi
+          echo "all images digest-pinned"
+      - name: assert search routing is explicit
+        run: |
+          grep -q 'search_backend: searxng' /tmp/base.yaml || {
+            echo "web.search_backend must be pinned to searxng"; exit 1; }
+          echo "search backend pinned"
+
+  validate:
+    name: kubeconform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install tools
+        run: |
+          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          curl -sSLo /tmp/kubeconform.tar.gz https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/
+      - name: validate schemas
+        run: |
+          kustomize build deploy/kubernetes/overlays/example \
+            | kubeconform -strict -summary -ignore-missing-schemas
+
+  compose:
+    name: compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: validate compose
+        working-directory: deploy/compose
+        run: |
+          cp .env.example .env
+          ./init.sh
+          sed -i 's|^HERMES_MODEL_DEFAULT=.*|HERMES_MODEL_DEFAULT=ci/model|' .env
+          sed -i 's|^HERMES_MODEL_BASE_URL=.*|HERMES_MODEL_BASE_URL=https://ci.example/v1|' .env
+          docker compose config > /tmp/compose.yaml
+          echo "compose config OK"
+      - name: assert UIs are not bound to 0.0.0.0 by default
+        working-directory: deploy/compose
+        run: |
+          if grep -E 'host_ip: 0\.0\.0\.0' /tmp/compose.yaml; then
+            echo "a service is exposed on all interfaces by default"; exit 1
+          fi
+          echo "host bindings are loopback-only"
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: shellcheck scripts/*.sh deploy/compose/init.sh

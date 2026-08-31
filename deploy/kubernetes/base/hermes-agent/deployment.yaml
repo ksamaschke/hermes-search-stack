@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-agent
+  labels:
+    app.kubernetes.io/name: hermes-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  strategy:
+    # The PVC is RWO; a rolling update would deadlock on volume attach.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes-agent
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      # SANDBOXED RUNTIME
+      # The agent executes model-authored shell commands, so it is the one
+      # workload in this stack that genuinely wants kernel-level isolation.
+      # `runtimeClassName` is intentionally ABSENT from the base so the stack
+      # installs on vanilla clusters. The `sandboxed` overlay patches in
+      # gVisor (runsc) or Kata. See docs/sandboxing.md.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: render-config
+          image: docker.io/nousresearch/hermes-agent:v2026.8.27@sha256:e0df6adebddf29b91112aefc999d4aaf6846c9eb544faca5672a16a13590ff79
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "/bootstrap/bootstrap.py"]
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HERMES_MODEL_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: model-provider
+            - name: HERMES_MODEL_DEFAULT
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: model-default
+            - name: HERMES_MODEL_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: model-base-url
+            - name: HERMES_EXTRACT_BACKEND
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: extract-backend
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: bootstrap
+              mountPath: /bootstrap
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: hermes-agent
+          image: docker.io/nousresearch/hermes-agent:v2026.8.27@sha256:e0df6adebddf29b91112aefc999d4aaf6846c9eb544faca5672a16a13590ff79
+          imagePullPolicy: IfNotPresent
+          args: ["gateway", "run"]
+          ports:
+            - name: api
+              containerPort: 8642
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HERMES_UID
+              value: "10000"
+            - name: HERMES_GID
+              value: "10000"
+            # --- OpenAI-compatible API server (consumed by Open WebUI) -------
+            - name: API_SERVER_ENABLED
+              value: "true"
+            - name: API_SERVER_HOST
+              value: "0.0.0.0"
+            - name: API_SERVER_PORT
+              value: "8642"
+            # Gateway refuses to bind the listener unless this is >= 16 chars.
+            - name: API_SERVER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-secrets
+                  key: api-server-key
+            # --- Search + scrape --------------------------------------------
+            - name: SEARXNG_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: searxng-url
+            - name: FIRECRAWL_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: firecrawl-url
+                  optional: true
+            # --- Model gateway credential -----------------------------------
+            # Named by model.key_env in config.yaml. The VALUE lives in a
+            # Secret that is never part of this repository.
+            - name: HERMES_GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-secrets
+                  key: model-api-key
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: api
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: api
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 4Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-agent-data
+        - name: bootstrap
+          configMap:
+            name: hermes-agent-bootstrap
+            defaultMode: 0555

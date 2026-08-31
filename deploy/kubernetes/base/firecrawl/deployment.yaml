@@ -1,0 +1,338 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firecrawl-api
+  labels:
+    app.kubernetes.io/name: firecrawl-api
+    app.kubernetes.io/component: scraper
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: firecrawl-api
+        app.kubernetes.io/component: scraper
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: ghcr.io/firecrawl/firecrawl:2.10.1@sha256:a7a8c9b2f81276c83a90d6d8877b2ecc953805c8feabe2cd5783be28e750cc88
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/src/harness.js", "--start-docker"]
+          ports:
+            - name: http
+              containerPort: 3002
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "3002"
+            - name: INTERNAL_PORT
+              value: "3002"
+            - name: WORKER_PORT
+              value: "3005"
+            - name: EXTRACT_WORKER_PORT
+              value: "3004"
+            - name: ENV
+              value: "local"
+            # Self-hosted: no credit metering, no Firecrawl account. The API is
+            # UNAUTHENTICATED, which is why it is a ClusterIP service with a
+            # NetworkPolicy and is never exposed through an ingress.
+            - name: USE_DB_AUTHENTICATION
+              value: "false"
+            - name: REDIS_URL
+              value: "redis://firecrawl-redis:6379"
+            - name: REDIS_RATE_LIMIT_URL
+              value: "redis://firecrawl-redis:6379"
+            - name: PLAYWRIGHT_MICROSERVICE_URL
+              value: "http://firecrawl-playwright:3000/scrape"
+            - name: NUQ_RABBITMQ_URL
+              value: "amqp://firecrawl-rabbitmq:5672"
+            - name: POSTGRES_HOST
+              value: "firecrawl-nuq-postgres"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: firecrawl-secrets
+                  key: postgres-password
+            # Point Firecrawl's own search feature at the in-stack SearXNG so
+            # nothing in the scrape path calls a third-party search API.
+            - name: SEARXNG_ENDPOINT
+              value: "http://searxng:8080"
+            - name: NUM_WORKERS_PER_QUEUE
+              value: "4"
+            - name: MAX_CONCURRENT_JOBS
+              value: "3"
+            - name: CRAWL_CONCURRENT_REQUESTS
+              value: "5"
+            - name: BROWSER_POOL_SIZE
+              value: "3"
+            - name: LOGGING_LEVEL
+              value: "info"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firecrawl-playwright
+  labels:
+    app.kubernetes.io/name: firecrawl-playwright
+    app.kubernetes.io/component: scraper-browser
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl-playwright
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: firecrawl-playwright
+        app.kubernetes.io/component: scraper-browser
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: playwright
+          image: ghcr.io/firecrawl/playwright-service:latest@sha256:468009bae00911d40d7120d58489a1d529362c22c45585cb9076094fe61b0025
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: MAX_CONCURRENT_PAGES
+              value: "5"
+            - name: BLOCK_MEDIA
+              value: "true"
+            # Refuse SSRF into the cluster's own control plane / link-local.
+            - name: ALLOW_LOCAL_WEBHOOKS
+              value: "false"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: cache
+              mountPath: /tmp/.cache
+      volumes:
+        - name: cache
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firecrawl-redis
+  labels:
+    app.kubernetes.io/name: firecrawl-redis
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: firecrawl-redis
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: valkey
+          image: docker.io/valkey/valkey:8-alpine@sha256:e0eb7c480958d32bdc4357a74bdd70653ae15f2f9b4c93c4a5a9fad1dc471c84
+          imagePullPolicy: IfNotPresent
+          command: ["valkey-server", "--bind", "0.0.0.0", "--save", "", "--appendonly", "no"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firecrawl-rabbitmq
+  labels:
+    app.kubernetes.io/name: firecrawl-rabbitmq
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl-rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: firecrawl-rabbitmq
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rabbitmq
+          image: docker.io/library/rabbitmq:4-alpine@sha256:4b93812804b41679198d340bfb644ff93f270a1658b28cb57dab6c85516a5da1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: amqp
+              containerPort: 5672
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "check_running"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firecrawl-nuq-postgres
+  labels:
+    app.kubernetes.io/name: firecrawl-nuq-postgres
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl-nuq-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: firecrawl-nuq-postgres
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # NOT stock postgres: Firecrawl's NuQ queue needs its own extensions,
+        # shipped in this purpose-built image.
+        - name: postgres
+          image: ghcr.io/firecrawl/nuq-postgres:latest@sha256:aed86f62858f29bd971abddcdeb301c12888098d2cf5d33c1ba42b053bc460f6
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "postgres"
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: firecrawl-secrets
+                  key: postgres-password
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        # Queue state is ephemeral/rebuildable; jobs are short-lived.
+        - name: data
+          emptyDir:
+            sizeLimit: 4Gi

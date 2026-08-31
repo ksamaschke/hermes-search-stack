@@ -1,0 +1,1 @@
+../kubernetes/base/hermes-agent/files/bootstrap.py

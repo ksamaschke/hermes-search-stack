@@ -1,0 +1,29 @@
+model:
+  # Provider/base_url/model are environment-specific: set them in an overlay.
+  # `key_env` names the ENV VAR holding the key - never the key itself.
+  provider: ${HERMES_MODEL_PROVIDER}
+  default: ${HERMES_MODEL_DEFAULT}
+  base_url: ${HERMES_MODEL_BASE_URL}
+  key_env: HERMES_GATEWAY_API_KEY
+
+web:
+  # Explicit per-capability routing. This MUST be set explicitly:
+  # Hermes' env auto-detection ranks FIRECRAWL_API_URL ABOVE SEARXNG_URL,
+  # so leaving it to auto-detect would silently route SEARCH to Firecrawl
+  # too. SearXNG is search-only; Firecrawl is the extractor.
+  search_backend: searxng
+  extract_backend: ${HERMES_EXTRACT_BACKEND}
+  keyless_fallback: false
+  keyless_rescue: false
+
+agent:
+  max_turns: 90
+
+security:
+  # The agent runs inside a sandboxed runtime with a private network path
+  # to SearXNG/Firecrawl, both of which are cluster-internal hostnames.
+  allow_private_urls: true
+
+terminal:
+  backend: local
+  cwd: /opt/data/workspace

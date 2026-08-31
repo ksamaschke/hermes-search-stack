@@ -1,0 +1,55 @@
+# Reference overlay: copy this directory, change the values, commit it to YOUR
+# repository (private if it carries hostnames you would rather not publish).
+#
+# What an overlay is expected to own:
+#   1. namespace
+#   2. the model gateway coordinates (provider / model / base URL)
+#   3. ingress or HTTPProxy objects for your controller
+#   4. Secret *references* - the values come from your secret manager
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hermes-search
+
+resources:
+  - namespace.yaml
+  # Swap for `../../base` if your cluster has no sandboxed RuntimeClass.
+  - ../sandboxed
+  - ingress.yaml
+
+configMapGenerator:
+  - name: hermes-agent-runtime
+    behavior: merge
+    literals:
+      - model-provider=custom
+      - model-default=my-gateway/my-model
+      - model-base-url=https://ai.example.internal/v1
+  - name: open-webui-runtime
+    behavior: merge
+    literals:
+      - public-url=https://chat.example.com
+  - name: hermes-webui-runtime
+    behavior: merge
+    literals:
+      - allowed-origins=https://admin.example.com
+
+# Secrets are NOT generated here. Create them out of band, e.g.:
+#
+#   kubectl -n hermes-search create secret generic hermes-agent-secrets \
+#     --from-literal=api-server-key="$(openssl rand -hex 32)" \
+#     --from-literal=model-api-key="$YOUR_GATEWAY_KEY"
+#
+#   kubectl -n hermes-search create secret generic hermes-webui-secrets \
+#     --from-literal=password="$(openssl rand -base64 24)"
+#
+#   kubectl -n hermes-search create secret generic open-webui-secrets \
+#     --from-literal=secret-key="$(openssl rand -hex 32)"
+#
+#   kubectl -n hermes-search create secret generic searxng-secret \
+#     --from-literal=secret-key="$(openssl rand -hex 32)"
+#
+#   kubectl -n hermes-search create secret generic firecrawl-secrets \
+#     --from-literal=postgres-password="$(openssl rand -hex 24)"
+#
+# Or manage them with External Secrets / Sealed Secrets / SOPS.
+# See docs/secrets.md for the full contract.

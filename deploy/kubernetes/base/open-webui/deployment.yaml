@@ -1,0 +1,167 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-data
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/component: chat-ui
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: open-webui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: open-webui
+        app.kubernetes.io/component: chat-ui
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: open-webui
+          image: ghcr.io/open-webui/open-webui:main@sha256:c792953395b43d4f49085fa4026850c5e923578345ebeaf56eabd980bcfc273a
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # --- Hermes Agent as the model backend --------------------------
+            # The agent exposes an OpenAI-compatible API; the /v1 suffix is
+            # REQUIRED or model discovery silently returns nothing.
+            - name: OPENAI_API_BASE_URL
+              value: "http://hermes-agent:8642/v1"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-secrets
+                  key: api-server-key
+            # Ollama is not part of this stack.
+            - name: ENABLE_OLLAMA_API
+              value: "false"
+
+            # --- SearXNG as the web-search engine ---------------------------
+            - name: ENABLE_WEB_SEARCH
+              value: "true"
+            - name: WEB_SEARCH_ENGINE
+              value: "searxng"
+            # <query> is a literal placeholder Open WebUI substitutes.
+            - name: SEARXNG_QUERY_URL
+              value: "http://searxng:8080/search?q=<query>&format=json"
+
+            # --- Firecrawl as the page loader (scraper) ---------------------
+            - name: WEB_LOADER_ENGINE
+              valueFrom:
+                configMapKeyRef:
+                  name: open-webui-runtime
+                  key: web-loader-engine
+            - name: FIRECRAWL_API_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: open-webui-runtime
+                  key: firecrawl-url
+            - name: FIRECRAWL_API_KEY
+              value: "self-hosted-no-auth"
+
+            - name: WEBUI_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: open-webui-runtime
+                  key: public-url
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-secrets
+                  key: secret-key
+            - name: ANONYMIZED_TELEMETRY
+              value: "false"
+            - name: DO_NOT_TRACK
+              value: "true"
+            - name: SCARF_NO_ANALYTICS
+              value: "true"
+          envFrom:
+            # Optional OIDC/SSO wiring. Ships absent so the stack works with
+            # local accounts out of the box; overlays create this Secret to
+            # turn on SSO. See docs/sso.md.
+            - secretRef:
+                name: open-webui-oidc
+                optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: open-webui-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: open-webui
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: open-webui
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: open-webui-runtime
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: hermes-search-stack
+data:
+  public-url: "http://localhost:3000"
+  # "firecrawl" routes page fetches through the in-stack scraper.
+  # Set to "" (empty) to use Open WebUI's built-in requests loader instead.
+  web-loader-engine: "firecrawl"
+  firecrawl-url: "http://firecrawl-api:3002"

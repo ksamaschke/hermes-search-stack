@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-agent-runtime
+  labels:
+    app.kubernetes.io/name: hermes-agent
+    app.kubernetes.io/part-of: hermes-search-stack
+data:
+  # ---------------------------------------------------------------------------
+  # Non-secret runtime wiring. Overlays override these with `configMapGenerator`
+  # or a patch. NOTHING SENSITIVE BELONGS HERE - the model API key is a Secret.
+  # ---------------------------------------------------------------------------
+
+  # In-cluster SearXNG. Hermes appends /search?format=json itself.
+  searxng-url: "http://searxng:8080"
+
+  # Self-hosted Firecrawl. When FIRECRAWL_API_URL is set the API key is
+  # optional (the bundled instance runs with USE_DB_AUTHENTICATION=false).
+  firecrawl-url: "http://firecrawl-api:3002"
+
+  # Which provider serves web_extract. "firecrawl" uses the in-stack scraper.
+  # Set to "" and remove the firecrawl component for a search-only install.
+  extract-backend: "firecrawl"
+
+  # --- Model routing ---------------------------------------------------------
+  # Defaults point at nothing usable on purpose: a fresh clone must choose.
+  # Example for an OpenAI-compatible gateway:
+  #   model-provider:  custom
+  #   model-default:   your-gateway/your-model
+  #   model-base-url:  https://gateway.example.internal/v1
+  model-provider: "custom"
+  model-default: "REPLACE_ME"
+  model-base-url: "REPLACE_ME"

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-agent
+  labels:
+    app.kubernetes.io/name: hermes-agent
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hermes-agent
+  ports:
+    - name: api
+      port: 8642
+      targetPort: api

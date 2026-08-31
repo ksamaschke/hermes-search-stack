@@ -1,0 +1,47 @@
+# Argo CD Application for the Hermes Search Stack.
+#
+# Point `path` at YOUR overlay. The `example` overlay is a template, not a
+# deployable target - copy it, set your hostnames and model gateway, then
+# reference your copy here (in this repo or a private one).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hermes-search-stack
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: hermes-search-stack
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksamaschke/hermes-search-stack.git
+    # Pin a tag or commit SHA in production instead of a moving branch.
+    targetRevision: main
+    path: deploy/kubernetes/overlays/example
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hermes-search
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      # Secrets are created out of band and are NOT in Git. Without this,
+      # a dry run against a not-yet-created Secret can fail the sync.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  # Longhorn/CSI resize and Firecrawl's queue tables mutate fields Argo would
+  # otherwise flag as drift.
+  ignoreDifferences:
+    - group: ""
+      kind: PersistentVolumeClaim
+      jsonPointers:
+        - /spec/resources/requests/storage

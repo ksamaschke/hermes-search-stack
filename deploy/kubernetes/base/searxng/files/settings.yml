@@ -1,0 +1,33 @@
+use_default_settings: true
+
+general:
+  instance_name: "Hermes Search Stack"
+  # Do not leak stack traces to the caller.
+  debug: false
+  enable_metrics: false
+
+server:
+  # Overridden at runtime by SEARXNG_SECRET (see secret contract in docs).
+  secret_key: "PLACEHOLDER_REPLACED_BY_ENV"
+  limiter: false
+  image_proxy: true
+  method: "GET"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true
+
+# Redis/Valkey is used for the rate limiter and caching. The URL is injected
+# via the SEARXNG_REDIS_URL environment variable in deployment.yaml.
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true
