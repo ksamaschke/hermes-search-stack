@@ -138,6 +138,15 @@ spec:
             # PVC and can be shadowed by stale state, env cannot.
             - name: HERMES_LAZY_INSTALL_TARGET
               value: ""
+            # Tirith is a security scanner the agent fetches from GitHub on
+            # first use ("tirith not found — downloading latest release").
+            # That download happens during gateway startup, after plugin
+            # discovery and before the 8642 bind, and on this node it pushed
+            # boot past the startup-probe budget. We do not use tirith here,
+            # and pulling a binary from the internet at boot is not something
+            # a sandboxed workload should be doing anyway.
+            - name: TIRITH_ENABLED
+              value: "false"
             - name: HERMES_UID
               value: "10000"
             - name: HERMES_GID
