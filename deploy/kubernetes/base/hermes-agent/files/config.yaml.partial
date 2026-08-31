@@ -8,20 +8,25 @@ model:
 
 gateway:
   # OpenAI-compatible endpoint that Open WebUI and the Hermes WebUI consume.
-  # Written explicitly rather than relying on the API_SERVER_* environment
-  # variables alone: under `hermes gateway run` those did not bind the
-  # listener, and port 8642 stayed closed with the gateway process up.
-  # host 0.0.0.0 is required so the Service can reach it - the default
-  # 127.0.0.1 is only reachable inside the pod's own netns.
-  api_server:
-    enabled: true
-    host: 0.0.0.0
-    port: 8642
-    # The key itself is NOT written here. API_SERVER_KEY is injected from the
-    # hermes-agent-secrets Secret and environment variables take precedence
-    # over config.yaml, so the secret never touches disk.
-    model_name: hermes-agent
-    max_concurrent_runs: 10
+  #
+  # The shape here is not cosmetic. gateway/config.py enrolls this platform via
+  # _PLATFORM_CONNECTED_CHECKERS[Platform.API_SERVER], which reads
+  # `cfg.extra["key"]` - so the key must live under platforms.api_server.extra.
+  # Container-wide API_SERVER_* env vars alone left the gateway process up with
+  # port 8642 never bound and no platform ever logged.
+  #
+  # `key` is a placeholder; bootstrap.py substitutes the real value from the
+  # API_SERVER_KEY env var (injected from hermes-agent-secrets) at render time,
+  # so the secret never lives in git.
+  platforms:
+    api_server:
+      enabled: true
+      extra:
+        key: ${API_SERVER_KEY}
+        # 0.0.0.0 is required so the Service can reach it; the default
+        # 127.0.0.1 is only reachable inside the pod's own netns.
+        host: 0.0.0.0
+        port: 8642
 
 web:
   # Explicit per-capability routing. This MUST be set explicitly:

@@ -64,6 +64,12 @@ def prune(node):
 merged = prune(merged)
 
 cfg_path.write_text(yaml.safe_dump(merged, sort_keys=False))
+# config.yaml now carries the API server key (the gateway's platform checker
+# reads it from platforms.api_server.extra.key), so keep it owner-only.
+try:
+    cfg_path.chmod(0o600)
+except OSError:
+    pass
 print(f"rendered {cfg_path}", flush=True)
 
 # The OpenAI-compatible API server is resolved per PROFILE, from that
