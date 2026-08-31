@@ -215,8 +215,18 @@ spec:
             failureThreshold: 5
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              # Boot is CPU-bound, not I/O-bound: the gateway discovers 55
+              # plugins and runs a ~50-item tool-capability sweep before it
+              # binds 8642. Sampled at 250m on a 96%-busy node the process sat
+              # in state=R with zero sockets open, taking minutes per pass and
+              # never reaching the listener; with cores actually available the
+              # identical config binds in ~10-20s.
+              #
+              # The request (not the limit) is what the scheduler honours and
+              # what CFS uses to weight the container under contention, so this
+              # has to be a realistic floor rather than the old token value.
+              cpu: "2"
+              memory: 1Gi
             limits:
               cpu: "4"
               memory: 4Gi

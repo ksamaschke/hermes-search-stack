@@ -6,6 +6,22 @@ model:
   base_url: ${HERMES_MODEL_BASE_URL}
   key_env: HERMES_GATEWAY_API_KEY
 
+plugins:
+  # Deny-list only.
+  #
+  # Do NOT add `plugins.enabled` here: bundled plugins (everything shipped in
+  # the image, including web/searxng and web/firecrawl) load regardless of the
+  # allow-list - it only gates standalone/user-installed/entry-point plugins.
+  # Setting it therefore does not shorten discovery, and getting the key format
+  # wrong is silent: keys are path-derived ("web/searxng", not "web-searxng"),
+  # so a plausible-looking list is simply ignored.
+  disabled:
+    # Both raise "dictionary changed size during iteration" during discovery.
+    # The loader catches it and logs a warning, so this is noise reduction
+    # rather than a fix, but it keeps the startup log readable.
+    - openrouter
+    - browser-browserbase
+
 security:
   # Turn OFF runtime pip installs.
   #
