@@ -102,8 +102,21 @@ if profile_env.exists():
 lines = ["# Managed by hermes-search-stack; API_SERVER_* are overwritten on boot."]
 lines += [f"{k}={v}" for k, v in managed.items()]
 lines += preserved
-profile_env.write_text("\n".join(lines) + "\n")
-profile_env.chmod(0o600)
+body = "\n".join(lines) + "\n"
+
+# The PVC survives restarts, so an .env may already exist from an earlier run
+# (possibly written by a different uid before fsGroup was in play). Rewriting
+# in place keeps the existing inode and avoids EPERM on a file we do not own;
+# chmod is best-effort for the same reason.
+try:
+    with open(profile_env, "w", encoding="utf-8") as fh:
+        fh.write(body)
+except OSError as exc:
+    sys.exit(f"cannot write {profile_env}: {exc}")
+try:
+    profile_env.chmod(0o600)
+except OSError:
+    pass
 print(f"wrote {profile_env} (API_SERVER_* for the default profile)", flush=True)
 
 # Sanity: fail loudly if search routing did not survive the merge.
