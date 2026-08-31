@@ -217,15 +217,20 @@ spec:
             requests:
               # Boot is CPU-bound, not I/O-bound: the gateway discovers 55
               # plugins and runs a ~50-item tool-capability sweep before it
-              # binds 8642. Sampled at 250m on a 96%-busy node the process sat
-              # in state=R with zero sockets open, taking minutes per pass and
-              # never reaching the listener; with cores actually available the
-              # identical config binds in ~10-20s.
+              # binds 8642. At 250m the process sat in state=R with zero
+              # sockets open, taking minutes per pass and never reaching the
+              # listener; with cores actually available the identical config
+              # binds in ~10-20s.
               #
-              # The request (not the limit) is what the scheduler honours and
-              # what CFS uses to weight the container under contention, so this
-              # has to be a realistic floor rather than the old token value.
-              cpu: "2"
+              # Sizing is constrained: the gvisor RuntimeClass carries
+              # scheduling.nodeSelector gvisor-enabled=true, and exactly ONE
+              # node (k3s-worker-05) has that label. Every sandboxed workload
+              # in the cluster therefore lands on that single 4-CPU node, so
+              # this request must fit beside firecrawl-api and playwright.
+              # 1 CPU is the largest value that schedules there today; raising
+              # it further needs another gvisor-enabled node, not a bigger
+              # number here.
+              cpu: "1"
               memory: 1Gi
             limits:
               cpu: "4"
