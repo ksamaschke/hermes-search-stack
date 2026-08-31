@@ -21,6 +21,22 @@ spec:
         app.kubernetes.io/component: agent
         app.kubernetes.io/part-of: hermes-search-stack
     spec:
+      # Keep the agent off the same node as the Firecrawl API. Both are heavy
+      # at startup (the agent discovers 55 plugins; Firecrawl boots the API
+      # plus ten node workers) and co-scheduling them on a busy node starves
+      # both: the agent's gateway never reaches its listener and Firecrawl
+      # times out waiting for port 3002.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values: ["firecrawl-api", "firecrawl-playwright"]
       # SANDBOXED RUNTIME
       # The agent executes model-authored shell commands, so it is the one
       # workload in this stack that genuinely wants kernel-level isolation.

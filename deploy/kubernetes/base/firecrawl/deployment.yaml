@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/part-of: hermes-search-stack
 spec:
   replicas: 1
+  # Two API pods fight over the same NuQ queue and RabbitMQ consumers, and a
+  # rolling update leaves the old pod holding them while the new one waits for
+  # port 3002. Recreate keeps exactly one alive at a time.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: firecrawl-api

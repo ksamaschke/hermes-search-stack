@@ -66,6 +66,46 @@ merged = prune(merged)
 cfg_path.write_text(yaml.safe_dump(merged, sort_keys=False))
 print(f"rendered {cfg_path}", flush=True)
 
+# The OpenAI-compatible API server is resolved per PROFILE, from that
+# profile's own .env - not from container-wide environment variables and not
+# from config.yaml. Without this the gateway starts happily, logs nothing
+# about a platform, and port 8642 is never bound.
+#
+# Values come from the container environment (API_SERVER_KEY is injected from
+# a Secret); we write them into the default profile's .env so the gateway
+# actually resolves them. The file is rewritten on every start so the Secret
+# stays the single source of truth.
+profile_env = home / "profiles" / "default" / ".env"
+profile_env.parent.mkdir(parents=True, exist_ok=True)
+
+api_key = os.environ.get("API_SERVER_KEY", "")
+if not api_key:
+    sys.exit("API_SERVER_KEY is empty - the gateway would start unauthenticated")
+if len(api_key) < 8:
+    sys.exit("API_SERVER_KEY must be at least 8 characters")
+
+managed = {
+    "API_SERVER_ENABLED": os.environ.get("API_SERVER_ENABLED", "true"),
+    "API_SERVER_HOST": os.environ.get("API_SERVER_HOST", "0.0.0.0"),
+    "API_SERVER_PORT": os.environ.get("API_SERVER_PORT", "8642"),
+    "API_SERVER_KEY": api_key,
+}
+
+# Preserve any unrelated keys a user set in the profile .env.
+preserved = []
+if profile_env.exists():
+    for line in profile_env.read_text().splitlines():
+        name = line.split("=", 1)[0].strip()
+        if line.strip() and not line.lstrip().startswith("#") and name not in managed:
+            preserved.append(line)
+
+lines = ["# Managed by hermes-search-stack; API_SERVER_* are overwritten on boot."]
+lines += [f"{k}={v}" for k, v in managed.items()]
+lines += preserved
+profile_env.write_text("\n".join(lines) + "\n")
+profile_env.chmod(0o600)
+print(f"wrote {profile_env} (API_SERVER_* for the default profile)", flush=True)
+
 # Sanity: fail loudly if search routing did not survive the merge.
 if merged.get("web", {}).get("search_backend") != "searxng":
     sys.exit("web.search_backend is not 'searxng' after merge - refusing to start")
