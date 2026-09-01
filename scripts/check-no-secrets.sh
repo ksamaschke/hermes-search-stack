@@ -3,7 +3,7 @@
 # Used by CI and safe to run locally before a push.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 FAIL=0
 note() { echo "  ✗ $*"; FAIL=1; }
