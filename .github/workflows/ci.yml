@@ -53,6 +53,13 @@ jobs:
           grep -q 'search_backend: searxng' /tmp/base.yaml || {
             echo "web.search_backend must be pinned to searxng"; exit 1; }
           echo "search backend pinned"
+      - name: assert Hermes wrapper stays non-interactive
+        run: |
+          grep -A2 '^      - args:$' /tmp/base.yaml | grep -q -- '- sleep' || {
+            echo "Hermes container must run the blocking sleep command"; exit 1; }
+          grep -A2 '^      - args:$' /tmp/base.yaml | grep -q -- '- infinity' || {
+            echo "Hermes container must not fall back to the interactive CLI"; exit 1; }
+          echo "Hermes wrapper command pinned"
 
   validate:
     name: kubeconform
