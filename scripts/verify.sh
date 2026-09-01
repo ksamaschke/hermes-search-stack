@@ -62,6 +62,8 @@ else
 fi
 
 info "Open WebUI can discover the agent as a model"
+# Expansion is intentionally deferred to the shell inside the Open WebUI pod.
+# shellcheck disable=SC2016
 MODELS=$(kubectl -n "$NS" exec deploy/open-webui -- \
   sh -c 'curl -fsS -m 10 -H "Authorization: Bearer $OPENAI_API_KEY" "$OPENAI_API_BASE_URL/models"' 2>/dev/null)
 if echo "$MODELS" | grep -q 'hermes'; then
