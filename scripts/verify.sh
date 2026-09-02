@@ -61,6 +61,30 @@ else
   bad "gateway /health failed - API_SERVER_KEY must be >= 16 chars for the listener to bind"
 fi
 
+info "Hermes model chat through the OpenAI-compatible API"
+# Keep both credentials inside the pod: API_SERVER_KEY authenticates the local
+# request, while HERMES_GATEWAY_API_KEY is resolved by Hermes from the profile
+# secret scope for the upstream model call.
+# Expansion is intentionally deferred to the shell inside the Hermes pod.
+# shellcheck disable=SC2016
+CHAT=$(kubectl -n "$NS" exec deploy/hermes-agent -- sh -c \
+  'curl -fsS -m 120 -H "Authorization: Bearer $API_SERVER_KEY" \
+    -H "Content-Type: application/json" \
+    -X POST http://localhost:8642/v1/chat/completions \
+    -d '\''{"model":"hermes-agent","messages":[{"role":"user","content":"Reply with OK."}],"stream":false}'\''' \
+  2>/dev/null)
+if printf '%s' "$CHAT" | python3 -c '
+import json, sys
+payload = json.load(sys.stdin)
+choice = (payload.get("choices") or [{}])[0]
+content = ((choice.get("message") or {}).get("content") or "").strip()
+raise SystemExit(0 if content and choice.get("finish_reason") != "error" else 1)
+' 2>/dev/null; then
+  ok "model chat returned a completion"
+else
+  bad "model chat failed - verify model credentials in the default profile secret scope"
+fi
+
 info "Open WebUI can discover the agent as a model"
 # Expansion is intentionally deferred to the shell inside the Open WebUI pod.
 # shellcheck disable=SC2016

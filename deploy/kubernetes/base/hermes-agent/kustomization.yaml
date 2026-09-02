@@ -11,6 +11,7 @@ configMapGenerator:
   - name: hermes-agent-bootstrap
     files:
       - files/bootstrap.py
+      - files/profile_env.py
   - name: hermes-agent-config
     files:
       - config.yaml.partial=files/config.yaml.partial

@@ -53,6 +53,20 @@ jobs:
           grep -q 'search_backend: searxng' /tmp/base.yaml || {
             echo "web.search_backend must be pinned to searxng"; exit 1; }
           echo "search backend pinned"
+      - name: assert Firecrawl capacity is bounded
+        run: >-
+          python3 scripts/check-firecrawl-capacity.py /tmp/base.yaml
+          --compose-manifest deploy/compose/docker-compose.yml
+      - name: test Firecrawl capacity checks
+        run: python3 scripts/test-firecrawl-capacity.py
+      - name: assert model credentials reach the profile scope
+        run: >-
+          python3 scripts/check-hermes-profile-env.py /tmp/base.yaml
+          deploy/kubernetes/base/hermes-agent/files/config.yaml.partial
+      - name: test model credential manifest checks
+        run: python3 scripts/test-hermes-profile-env-check.py
+      - name: test profile credential synchronization
+        run: python3 scripts/test-profile-env.py
       - name: assert Hermes wrapper stays non-interactive
         run: |
           grep -A2 '^      - args:$' /tmp/base.yaml | grep -q -- '- sleep' || {

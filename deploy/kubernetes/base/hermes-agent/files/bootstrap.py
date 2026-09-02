@@ -4,11 +4,15 @@
 Runs as an init container on every pod start. Idempotent by design:
 - Keys this stack owns are enforced (search backend, model routing).
 - Any other key the user set via the WebUI / CLI is preserved.
-- Secrets are never written here; only the NAME of an env var is stored.
+- The model key is stored only in the owner-only default-profile .env; ordinary
+  model config contains its env-var name. The API-server key is synchronized to
+  both owner-only files because the platform enrolment contract requires it.
 """
 import os
 import pathlib
 import sys
+
+from profile_env import ProfileEnvError, write_default_profile_env
 
 try:
     import yaml
@@ -141,58 +145,22 @@ except OSError:
     pass
 print(f"rendered {cfg_path}", flush=True)
 
-# The OpenAI-compatible API server is resolved per PROFILE, from that
-# profile's own .env - not from container-wide environment variables and not
-# from config.yaml. Without this the gateway starts happily, logs nothing
-# about a platform, and port 8642 is never bound.
+# The OpenAI-compatible API server and model provider credentials are resolved
+# per PROFILE, from that profile's own .env - not from container-wide
+# environment variables and not from config.yaml. Without this, the gateway
+# can bind successfully while model calls use "no-key-required" and get 401.
 #
-# Values come from the container environment (API_SERVER_KEY is injected from
-# a Secret); we write them into the default profile's .env so the gateway
-# actually resolves them. The file is rewritten on every start so the Secret
+# Values come from the init-container environment (both credentials are
+# injected from Secrets); rewrite them on every start so the Kubernetes Secret
 # stays the single source of truth.
-profile_env = home / "profiles" / "default" / ".env"
-profile_env.parent.mkdir(parents=True, exist_ok=True)
-
-api_key = os.environ.get("API_SERVER_KEY", "")
-if not api_key:
-    sys.exit("API_SERVER_KEY is empty - the gateway would start unauthenticated")
-if len(api_key) < 8:
-    sys.exit("API_SERVER_KEY must be at least 8 characters")
-
-managed = {
-    "API_SERVER_ENABLED": os.environ.get("API_SERVER_ENABLED", "true"),
-    "API_SERVER_HOST": os.environ.get("API_SERVER_HOST", "0.0.0.0"),
-    "API_SERVER_PORT": os.environ.get("API_SERVER_PORT", "8642"),
-    "API_SERVER_KEY": api_key,
-}
-
-# Preserve any unrelated keys a user set in the profile .env.
-preserved = []
-if profile_env.exists():
-    for line in profile_env.read_text().splitlines():
-        name = line.split("=", 1)[0].strip()
-        if line.strip() and not line.lstrip().startswith("#") and name not in managed:
-            preserved.append(line)
-
-lines = ["# Managed by hermes-search-stack; API_SERVER_* are overwritten on boot."]
-lines += [f"{k}={v}" for k, v in managed.items()]
-lines += preserved
-body = "\n".join(lines) + "\n"
-
-# The PVC survives restarts, so an .env may already exist from an earlier run
-# (possibly written by a different uid before fsGroup was in play). Rewriting
-# in place keeps the existing inode and avoids EPERM on a file we do not own;
-# chmod is best-effort for the same reason.
 try:
-    with open(profile_env, "w", encoding="utf-8") as fh:
-        fh.write(body)
-except OSError as exc:
-    sys.exit(f"cannot write {profile_env}: {exc}")
-try:
-    profile_env.chmod(0o600)
-except OSError:
-    pass
-print(f"wrote {profile_env} (API_SERVER_* for the default profile)", flush=True)
+    profile_env = write_default_profile_env(home, os.environ)
+except ProfileEnvError as exc:
+    sys.exit(str(exc))
+print(
+    f"wrote {profile_env} (API server and model credentials for the default profile)",
+    flush=True,
+)
 
 # Sanity: fail loudly if search routing did not survive the merge.
 if merged.get("web", {}).get("search_backend") != "searxng":
