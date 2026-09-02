@@ -86,6 +86,14 @@ spec:
                 secretKeyRef:
                   name: hermes-agent-secrets
                   key: api-server-key
+            # Model credential resolution is profile-scoped in the gateway.
+            # Supplying this only to the main container leaves the profile
+            # scope empty and upstream calls use "no-key-required".
+            - name: HERMES_GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-secrets
+                  key: model-api-key
             - name: API_SERVER_ENABLED
               value: "true"
             - name: API_SERVER_HOST
@@ -208,12 +216,11 @@ spec:
             timeoutSeconds: 10
             # 120 * 30s = 60 minutes, on top of the 60s delay.
             #
-            # This is deliberately enormous. Boot on this cluster is slow for
-            # structural reasons, not because anything is broken: the gvisor
-            # RuntimeClass carries scheduling.nodeSelector gvisor-enabled=true
-            # and exactly one node has that label, so hermes-agent,
-            # firecrawl-api and firecrawl-playwright all contend for the same
-            # 4 CPUs, and every syscall pays the gVisor tax on top.
+            # This is deliberately enormous. Cold boot is CPU-heavy: the
+            # gateway syncs bundled skills, discovers plugins, and probes tool
+            # capabilities before binding. Sandboxed deployments also pay the
+            # runtime's syscall overhead and may share a constrained set of
+            # eligible nodes with Firecrawl.
             #
             # Earlier budgets (15min, then 21min) expired mid-boot. The kubelet
             # killed the container and restarted it, which presented exactly
@@ -249,14 +256,9 @@ spec:
               # listener; with cores actually available the identical config
               # binds in ~10-20s.
               #
-              # Sizing is constrained: the gvisor RuntimeClass carries
-              # scheduling.nodeSelector gvisor-enabled=true, and exactly ONE
-              # node (k3s-worker-05) has that label. Every sandboxed workload
-              # in the cluster therefore lands on that single 4-CPU node, so
-              # this request must fit beside firecrawl-api and playwright.
-              # 1 CPU is the largest value that schedules there today; raising
-              # it further needs another gvisor-enabled node, not a bigger
-              # number here.
+              # A RuntimeClass may add a nodeSelector, so this request must fit
+              # beside the other sandboxed workloads on eligible nodes. Raise
+              # it only after adding or verifying sandbox-capable capacity.
               cpu: "1"
               memory: 1Gi
             limits:
