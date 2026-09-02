@@ -1,0 +1,64 @@
+name: hermes-agent-firecrawl-image
+
+on:
+  pull_request:
+    paths:
+      - images/hermes-agent-firecrawl/**
+      - .github/workflows/hermes-agent-firecrawl-image.yml
+  push:
+    branches: [main]
+    paths:
+      - images/hermes-agent-firecrawl/**
+      - .github/workflows/hermes-agent-firecrawl-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/ksamaschke/hermes-search-stack/hermes-agent
+  LOCAL_IMAGE: hermes-agent-firecrawl:test
+
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: images/hermes-agent-firecrawl
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.LOCAL_IMAGE }}
+          build-args: |
+            BUILD_REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the baked provider
+        run: |
+          docker run --rm \
+            --entrypoint /opt/hermes/.venv/bin/python3 \
+            "$LOCAL_IMAGE" \
+            -c "from firecrawl import Firecrawl; from importlib.metadata import version; assert version('firecrawl-py') == '4.17.0'; assert version('nest-asyncio') == '1.6.0'; print(Firecrawl.__name__)"
+
+      - name: Publish immutable commit tag
+        if: github.event_name != 'pull_request'
+        run: |
+          tag="sha-${GITHUB_SHA}"
+          docker tag "$LOCAL_IMAGE" "$IMAGE:$tag"
+          docker push "$IMAGE:$tag"
+          docker buildx imagetools inspect "$IMAGE:$tag"

@@ -1,0 +1,5 @@
+# Exact universal wheels from the Hermes v2026.8.27 lock. URL fragments make
+# uv verify the artifact hashes while --no-deps leaves the pinned base
+# environment untouched.
+firecrawl-py @ https://files.pythonhosted.org/packages/07/33/97a53f155c2dec843afb0925b77d715b328134b0fe2fef142c0ff810ff49/firecrawl_py-4.17.0-py3-none-any.whl#sha256=04a3132e1bba7630a618bf19738f22404d955751d4a24f2912f0e220dac2cca0
+nest-asyncio @ https://files.pythonhosted.org/packages/a0/c4/c2971a3ba4c6103a3d10c4b0f24f461ddc027f0f09763220cf35ca1401b3/nest_asyncio-1.6.0-py3-none-any.whl#sha256=87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c
