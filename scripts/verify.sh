@@ -107,6 +107,22 @@ if kubectl -n "$NS" get deploy firecrawl-api >/dev/null 2>&1; then
   else
     bad "Firecrawl scrape failed (playwright/queue may still be warming up)"
   fi
+
+  info "Firecrawl v2 JSON extraction through the model gateway"
+  EXTRACT=$(kubectl -n "$NS" exec deploy/firecrawl-api -- \
+    curl -fsS -m 120 -X POST http://localhost:3002/v2/scrape \
+      -H 'Content-Type: application/json' \
+      -d '{"url":"https://example.com","formats":[{"type":"json","prompt":"Extract the page title exactly as shown.","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"],"additionalProperties":false}}]}' \
+    2>/dev/null)
+  if printf '%s' "$EXTRACT" | python3 -c '
+import json, sys
+payload = json.load(sys.stdin)
+raise SystemExit(0 if payload["data"]["json"]["title"] == "Example Domain" else 1)
+' 2>/dev/null; then
+    ok "Firecrawl extracted data.json.title = Example Domain"
+  else
+    bad "Firecrawl JSON extraction failed - check model gateway env wiring"
+  fi
 fi
 
 echo

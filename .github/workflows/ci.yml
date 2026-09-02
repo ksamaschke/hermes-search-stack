@@ -59,6 +59,14 @@ jobs:
           --compose-manifest deploy/compose/docker-compose.yml
       - name: test Firecrawl capacity checks
         run: python3 scripts/test-firecrawl-capacity.py
+      - name: assert Firecrawl extraction model gateway wiring
+        run: |
+          for manifest in /tmp/base.yaml /tmp/sandboxed.yaml /tmp/example.yaml; do
+            python3 scripts/check-firecrawl-extraction-env.py "$manifest" \
+              --compose-manifest deploy/compose/docker-compose.yml
+          done
+      - name: test Firecrawl extraction model gateway checks
+        run: python3 scripts/test-firecrawl-extraction-env.py
       - name: assert model credentials reach the profile scope
         run: >-
           python3 scripts/check-hermes-profile-env.py /tmp/base.yaml

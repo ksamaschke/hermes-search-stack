@@ -18,7 +18,7 @@ infrastructure:
 Plus an optional fifth:
 
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** (self-hosted) — the website scraper. Renders pages in a
-  sandboxed Playwright browser and returns clean markdown.
+  sandboxed Playwright browser and returns clean markdown or structured JSON.
 
 ## Why these choices
 
@@ -134,6 +134,10 @@ The API key itself is **never** in a ConfigMap. The default named provider's
 `hermes-agent-secrets` Secret. If you override `model-provider` with a native
 provider, supply the credential that provider requires instead of assuming it
 uses `HERMES_GATEWAY_API_KEY`.
+Firecrawl's structured JSON extraction reuses that key, base URL, and model:
+its API container receives them as `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and
+`MODEL_NAME` through Secret/ConfigMap environment bindings. Compose maps the
+same three `HERMES_*` gateway variables into those Firecrawl variables.
 
 See [docs/secrets.md](docs/secrets.md) for the full contract,
 [docs/sso.md](docs/sso.md) for OIDC/Keycloak, and
