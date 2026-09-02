@@ -60,6 +60,24 @@ spec:
             # NetworkPolicy and is never exposed through an ingress.
             - name: USE_DB_AUTHENTICATION
               value: "false"
+            # Firecrawl's v2 JSON format delegates structured extraction to an
+            # OpenAI-compatible model. Reuse Hermes' gateway coordinates and
+            # keep the shared credential in the existing Secret.
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-secrets
+                  key: model-api-key
+            - name: OPENAI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: model-base-url
+            - name: MODEL_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: model-default
             - name: REDIS_URL
               value: "redis://firecrawl-redis:6379"
             - name: REDIS_RATE_LIMIT_URL

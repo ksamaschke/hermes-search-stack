@@ -19,9 +19,14 @@ or manage them with External Secrets, Sealed Secrets, SOPS, or Vault/OpenBao.
   error anywhere.
 
 - **`model-api-key`** — the credential for your upstream model gateway.
-  Referenced indirectly: `config.yaml` stores only `key_env:
-  HERMES_GATEWAY_API_KEY`, and the deployment populates that env var from this
-  key. The value never appears in a ConfigMap, a manifest, or Git.
+  Referenced indirectly: the default `providers.hermes-search-stack` contract
+  stores only `key_env: HERMES_GATEWAY_API_KEY`, and the deployment populates
+  that env var from this key. Firecrawl's API container also receives this
+  Secret key directly as
+  `OPENAI_API_KEY` for v2 structured JSON extraction; its `OPENAI_BASE_URL` and
+  `MODEL_NAME` come from the non-secret `hermes-agent-runtime` ConfigMap. The
+  credential value never appears in a ConfigMap, a manifest, or Git. Native
+  provider overrides use their own authentication contracts.
 
 ### `hermes-webui-secrets`
 

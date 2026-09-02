@@ -59,6 +59,14 @@ jobs:
           --compose-manifest deploy/compose/docker-compose.yml
       - name: test Firecrawl capacity checks
         run: python3 scripts/test-firecrawl-capacity.py
+      - name: assert Firecrawl extraction model gateway wiring
+        run: |
+          for manifest in /tmp/base.yaml /tmp/sandboxed.yaml /tmp/example.yaml; do
+            python3 scripts/check-firecrawl-extraction-env.py "$manifest" \
+              --compose-manifest deploy/compose/docker-compose.yml
+          done
+      - name: test Firecrawl extraction model gateway checks
+        run: python3 scripts/test-firecrawl-extraction-env.py
       - name: assert model credentials reach the profile scope
         run: >-
           python3 scripts/check-hermes-profile-env.py /tmp/base.yaml
@@ -67,6 +75,8 @@ jobs:
         run: python3 scripts/test-hermes-profile-env-check.py
       - name: test profile credential synchronization
         run: python3 scripts/test-profile-env.py
+      - name: test persistent config migration
+        run: python3 scripts/test-bootstrap-config.py
       - name: assert Hermes wrapper stays non-interactive
         run: |
           grep -A2 '^      - args:$' /tmp/base.yaml | grep -q -- '- sleep' || {
@@ -101,9 +111,10 @@ jobs:
         working-directory: deploy/compose
         run: |
           cp .env.example .env
-          ./init.sh
+          ./init.sh >/dev/null
           sed -i 's|^HERMES_MODEL_DEFAULT=.*|HERMES_MODEL_DEFAULT=ci/model|' .env
           sed -i 's|^HERMES_MODEL_BASE_URL=.*|HERMES_MODEL_BASE_URL=https://ci.example/v1|' .env
+          sed -i 's|^HERMES_GATEWAY_API_KEY=.*|HERMES_GATEWAY_API_KEY=ci-model-key|' .env
           docker compose config > /tmp/compose.yaml
           echo "compose config OK"
       - name: assert UIs are not bound to 0.0.0.0 by default

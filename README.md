@@ -18,7 +18,7 @@ infrastructure:
 Plus an optional fifth:
 
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** (self-hosted) — the website scraper. Renders pages in a
-  sandboxed Playwright browser and returns clean markdown.
+  sandboxed Playwright browser and returns clean markdown or structured JSON.
 
 ## Why these choices
 
@@ -43,6 +43,16 @@ set and you let it auto-detect, Firecrawl would quietly take over search too.
 This stack therefore writes `web.search_backend: searxng` and
 `web.extract_backend: firecrawl` explicitly, and the agent refuses to start if
 that routing does not survive config rendering.
+
+**The OpenAI-compatible model gateway uses a named custom provider.** With the
+pinned Hermes image, selecting bare `custom` while setting `model.base_url`
+bypasses the custom-provider `key_env` lookup and can send the literal fallback
+credential `no-key-required`. Authenticated gateways then reject the request.
+The stack therefore declares `providers.hermes-search-stack` with the gateway
+URL, model, and `HERMES_GATEWAY_API_KEY` reference, and selects that provider by
+default. `HERMES_MODEL_PROVIDER` remains overridable, but native providers have
+their own authentication contracts; this stack key is not a universal native-
+provider credential.
 
 ## Architecture
 
@@ -113,13 +123,21 @@ Secrets**. The manifests themselves are environment-agnostic.
 
 **Model gateway** (`hermes-agent-runtime` ConfigMap):
 
-- `model-provider` — e.g. `custom`, `openrouter`, `anthropic`
+- `model-provider` — defaults to `hermes-search-stack` for the configured
+  OpenAI-compatible endpoint; advanced deployments may select another provider
 - `model-default` — the model id
 - `model-base-url` — your OpenAI-compatible endpoint
 - `extract-backend` — `firecrawl`, or empty for search-only
 
-The API key itself is **never** in a ConfigMap. Hermes reads it from the env
-var named by `model.key_env`, populated from the `hermes-agent-secrets` Secret.
+The API key itself is **never** in a ConfigMap. The default named provider's
+`key_env` points to `HERMES_GATEWAY_API_KEY`, populated from the
+`hermes-agent-secrets` Secret. If you override `model-provider` with a native
+provider, supply the credential that provider requires instead of assuming it
+uses `HERMES_GATEWAY_API_KEY`.
+Firecrawl's structured JSON extraction reuses that key, base URL, and model:
+its API container receives them as `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and
+`MODEL_NAME` through Secret/ConfigMap environment bindings. Compose maps the
+same three `HERMES_*` gateway variables into those Firecrawl variables.
 
 See [docs/secrets.md](docs/secrets.md) for the full contract,
 [docs/sso.md](docs/sso.md) for OIDC/Keycloak, and

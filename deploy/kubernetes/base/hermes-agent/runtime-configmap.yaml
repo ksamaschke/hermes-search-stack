@@ -24,10 +24,14 @@ data:
 
   # --- Model routing ---------------------------------------------------------
   # Defaults point at nothing usable on purpose: a fresh clone must choose.
-  # Example for an OpenAI-compatible gateway:
-  #   model-provider:  custom
+  # OpenAI-compatible gateways use the named provider declared in the Hermes
+  # config partial. Do not use bare `custom` with the pinned image: that route
+  # does not resolve this stack's key_env and can send "no-key-required".
+  # Native provider overrides must use their own authentication contract.
+  # Example:
+  #   model-provider:  hermes-search-stack
   #   model-default:   your-gateway/your-model
   #   model-base-url:  https://gateway.example.internal/v1
-  model-provider: "custom"
+  model-provider: "hermes-search-stack"
   model-default: "REPLACE_ME"
   model-base-url: "REPLACE_ME"

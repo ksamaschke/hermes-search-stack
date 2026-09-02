@@ -21,7 +21,7 @@ configMapGenerator:
   - name: hermes-agent-runtime
     behavior: merge
     literals:
-      - model-provider=custom
+      - model-provider=hermes-search-stack
       - model-default=my-gateway/my-model
       - model-base-url=https://ai.example.internal/v1
   - name: open-webui-runtime
