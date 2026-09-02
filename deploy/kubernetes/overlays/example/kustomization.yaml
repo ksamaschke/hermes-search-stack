@@ -24,6 +24,7 @@ configMapGenerator:
       - model-provider=hermes-search-stack
       - model-default=my-gateway/my-model
       - model-base-url=https://ai.example.internal/v1
+      - firecrawl-model=my-gateway/my-structured-output-model
   - name: open-webui-runtime
     behavior: merge
     literals:

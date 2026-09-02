@@ -108,7 +108,7 @@ For a VM, a NUC, or anything without a cluster:
 cd deploy/compose
 cp .env.example .env
 ./init.sh                 # generates every secret
-$EDITOR .env              # set your model gateway (3 values)
+$EDITOR .env              # set your model gateway and extraction model
 docker compose up -d
 ```
 
@@ -127,6 +127,8 @@ Secrets**. The manifests themselves are environment-agnostic.
   OpenAI-compatible endpoint; advanced deployments may select another provider
 - `model-default` — the model id
 - `model-base-url` — your OpenAI-compatible endpoint
+- `firecrawl-model` — a structured-output model available through the same
+  gateway; it may differ from the conversational model
 - `extract-backend` — `firecrawl`, or empty for search-only
 
 The API key itself is **never** in a ConfigMap. The default named provider's
@@ -134,10 +136,13 @@ The API key itself is **never** in a ConfigMap. The default named provider's
 `hermes-agent-secrets` Secret. If you override `model-provider` with a native
 provider, supply the credential that provider requires instead of assuming it
 uses `HERMES_GATEWAY_API_KEY`.
-Firecrawl's structured JSON extraction reuses that key, base URL, and model:
-its API container receives them as `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and
-`MODEL_NAME` through Secret/ConfigMap environment bindings. Compose maps the
-same three `HERMES_*` gateway variables into those Firecrawl variables.
+Firecrawl's structured JSON extraction reuses that key and base URL while using
+the independently configured `firecrawl-model`: its API container receives
+them as `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `MODEL_NAME` through
+Secret/ConfigMap environment bindings. Compose maps
+`FIRECRAWL_MODEL_DEFAULT` into `MODEL_NAME`. The pinned Firecrawl image calls
+the gateway's OpenAI Responses API for structured extraction, so select a model
+and route that support that endpoint and strict JSON output.
 
 See [docs/secrets.md](docs/secrets.md) for the full contract,
 [docs/sso.md](docs/sso.md) for OIDC/Keycloak, and

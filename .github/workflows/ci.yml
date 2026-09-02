@@ -53,6 +53,13 @@ jobs:
           grep -q 'search_backend: searxng' /tmp/base.yaml || {
             echo "web.search_backend must be pinned to searxng"; exit 1; }
           echo "search backend pinned"
+      - name: assert SearXNG has independent fallback engines
+        run: >-
+          python3 scripts/check-searxng-fallback-engines.py
+          deploy/kubernetes/base/searxng/files/settings.yml
+          deploy/compose/searxng/settings.yml
+      - name: test SearXNG fallback-engine checks
+        run: python3 scripts/test-searxng-fallback-engines.py
       - name: assert Firecrawl capacity is bounded
         run: >-
           python3 scripts/check-firecrawl-capacity.py /tmp/base.yaml
@@ -113,6 +120,7 @@ jobs:
           cp .env.example .env
           ./init.sh >/dev/null
           sed -i 's|^HERMES_MODEL_DEFAULT=.*|HERMES_MODEL_DEFAULT=ci/model|' .env
+          sed -i 's|^FIRECRAWL_MODEL_DEFAULT=.*|FIRECRAWL_MODEL_DEFAULT=ci/structured-model|' .env
           sed -i 's|^HERMES_MODEL_BASE_URL=.*|HERMES_MODEL_BASE_URL=https://ci.example/v1|' .env
           sed -i 's|^HERMES_GATEWAY_API_KEY=.*|HERMES_GATEWAY_API_KEY=ci-model-key|' .env
           docker compose config > /tmp/compose.yaml

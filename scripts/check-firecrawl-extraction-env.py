@@ -16,12 +16,12 @@ KUBERNETES_BINDINGS = {
         "hermes-agent-runtime",
         "model-base-url",
     ),
-    "MODEL_NAME": ("configMapKeyRef", "hermes-agent-runtime", "model-default"),
+    "MODEL_NAME": ("configMapKeyRef", "hermes-agent-runtime", "firecrawl-model"),
 }
 COMPOSE_BINDINGS = {
     "OPENAI_API_KEY": "HERMES_GATEWAY_API_KEY",
     "OPENAI_BASE_URL": "HERMES_MODEL_BASE_URL",
-    "MODEL_NAME": "HERMES_MODEL_DEFAULT",
+    "MODEL_NAME": "FIRECRAWL_MODEL_DEFAULT",
 }
 
 

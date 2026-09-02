@@ -35,3 +35,8 @@ data:
   model-provider: "hermes-search-stack"
   model-default: "REPLACE_ME"
   model-base-url: "REPLACE_ME"
+
+  # Firecrawl's structured extractor uses the gateway too, but it may require a
+  # different model from the conversational agent. In particular, the pinned
+  # Firecrawl image calls the OpenAI Responses API for structured JSON.
+  firecrawl-model: "REPLACE_ME"

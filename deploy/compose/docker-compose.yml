@@ -54,7 +54,7 @@ services:
       # Firecrawl v2 JSON extraction reuses Hermes' OpenAI-compatible gateway.
       OPENAI_API_KEY: "${HERMES_GATEWAY_API_KEY:?set your gateway key in .env}"
       OPENAI_BASE_URL: "${HERMES_MODEL_BASE_URL:?set your gateway URL in .env}"
-      MODEL_NAME: "${HERMES_MODEL_DEFAULT:?set your model in .env}"
+      MODEL_NAME: "${FIRECRAWL_MODEL_DEFAULT:?set your Firecrawl extraction model in .env}"
       REDIS_URL: "redis://firecrawl-redis:6379"
       REDIS_RATE_LIMIT_URL: "redis://firecrawl-redis:6379"
       PLAYWRIGHT_MICROSERVICE_URL: "http://firecrawl-playwright:3000/scrape"
