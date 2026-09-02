@@ -111,9 +111,10 @@ jobs:
         working-directory: deploy/compose
         run: |
           cp .env.example .env
-          ./init.sh
+          ./init.sh >/dev/null
           sed -i 's|^HERMES_MODEL_DEFAULT=.*|HERMES_MODEL_DEFAULT=ci/model|' .env
           sed -i 's|^HERMES_MODEL_BASE_URL=.*|HERMES_MODEL_BASE_URL=https://ci.example/v1|' .env
+          sed -i 's|^HERMES_GATEWAY_API_KEY=.*|HERMES_GATEWAY_API_KEY=ci-model-key|' .env
           docker compose config > /tmp/compose.yaml
           echo "compose config OK"
       - name: assert UIs are not bound to 0.0.0.0 by default
