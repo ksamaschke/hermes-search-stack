@@ -23,6 +23,11 @@ kind: Kustomization
 resources:
   - ../../base
 
+configMapGenerator:
+  - name: firecrawl-systeminformation-compat
+    files:
+      - firecrawl-systeminformation-compat.cjs
+
 patches:
   - target:
       kind: Deployment
@@ -42,6 +47,31 @@ patches:
       kind: Deployment
       name: firecrawl-api
     patch: |-
-      - op: add
-        path: /spec/template/spec/runtimeClassName
-        value: gvisor
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: firecrawl-api
+      spec:
+        template:
+          spec:
+            runtimeClassName: gvisor
+            containers:
+              - name: api
+                env:
+                  # Preload the compatibility shim into the harness and every
+                  # inherited queue-worker process.
+                  - name: NODE_OPTIONS
+                    value: --require=/opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs
+                  # The preload lives outside /app, so make the image's own
+                  # dependencies resolvable from the mounted module.
+                  - name: NODE_PATH
+                    value: /app/node_modules
+                volumeMounts:
+                  - name: systeminformation-compat
+                    mountPath: /opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs
+                    subPath: firecrawl-systeminformation-compat.cjs
+                    readOnly: true
+            volumes:
+              - name: systeminformation-compat
+                configMap:
+                  name: firecrawl-systeminformation-compat
