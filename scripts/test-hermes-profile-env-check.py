@@ -10,6 +10,23 @@ import unittest
 from pathlib import Path
 
 CHECKER = Path(__file__).with_name("check-hermes-profile-env.py")
+NAMED_PROVIDER = "hermes-search-stack"
+
+
+def config_partial() -> str:
+    return textwrap.dedent(
+        """\
+        providers:
+          hermes-search-stack:
+            base_url: ${HERMES_MODEL_BASE_URL}
+            key_env: HERMES_GATEWAY_API_KEY
+            default_model: ${HERMES_MODEL_DEFAULT}
+
+        model:
+          provider: ${HERMES_MODEL_PROVIDER}
+          default: ${HERMES_MODEL_DEFAULT}
+        """
+    )
 
 
 def model_binding(indent: str) -> str:
@@ -27,7 +44,13 @@ def model_binding(indent: str) -> str:
     ).rstrip()
 
 
-def manifest(*, init_bindings: int = 1, main_bindings: int = 1, invoke: bool = True) -> str:
+def manifest(
+    *,
+    init_bindings: int = 1,
+    main_bindings: int = 1,
+    invoke: bool = True,
+    runtime_provider: str = NAMED_PROVIDER,
+) -> str:
     init_env = "\n".join(model_binding("        ") for _ in range(init_bindings))
     main_env = "\n".join(model_binding("        ") for _ in range(main_bindings))
     invocation = (
@@ -36,7 +59,15 @@ def manifest(*, init_bindings: int = 1, main_bindings: int = 1, invoke: bool = T
         if invoke
         else "print('bootstrap')"
     )
-    config_map = (
+    runtime_config_map = (
+        "apiVersion: v1\n"
+        "kind: ConfigMap\n"
+        "metadata:\n"
+        "  name: hermes-agent-runtime\n"
+        "data:\n"
+        f'  model-provider: "{runtime_provider}"\n'
+    )
+    bootstrap_config_map = (
         "apiVersion: v1\n"
         "kind: ConfigMap\n"
         "metadata:\n"
@@ -73,17 +104,19 @@ def manifest(*, init_bindings: int = 1, main_bindings: int = 1, invoke: bool = T
         "          - configMap:\n"
         "              name: hermes-agent-bootstrap\n"
     )
-    return config_map + "---\n" + deployment
+    return runtime_config_map + "---\n" + bootstrap_config_map + "---\n" + deployment
 
 
 class HermesProfileCheckTests(unittest.TestCase):
-    def run_checker(self, rendered: str) -> subprocess.CompletedProcess[str]:
+    def run_checker(
+        self, rendered: str, partial: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest_path = root / "rendered.yaml"
             partial_path = root / "config.yaml.partial"
             manifest_path.write_text(rendered)
-            partial_path.write_text("model:\n  key_env: HERMES_GATEWAY_API_KEY\n")
+            partial_path.write_text(config_partial() if partial is None else partial)
             return subprocess.run(
                 ["python3", str(CHECKER), str(manifest_path), str(partial_path)],
                 text=True,
@@ -104,6 +137,122 @@ class HermesProfileCheckTests(unittest.TestCase):
         result = self.run_checker(manifest(invoke=False))
         self.assertEqual(result.returncode, 1)
         self.assertIn("invoke write_default_profile_env", result.stdout)
+
+    def test_rejects_bare_custom_runtime_default(self) -> None:
+        result = self.run_checker(manifest(runtime_provider="custom"))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("model-provider", result.stdout)
+
+    def test_rejects_duplicate_runtime_provider_with_effective_custom(self) -> None:
+        rendered = manifest().replace(
+            '  model-provider: "hermes-search-stack"\n',
+            '  model-provider: "hermes-search-stack"\n  model-provider: "custom"\n',
+        )
+        result = self.run_checker(rendered)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("model-provider", result.stdout)
+
+    def test_rejects_missing_named_provider_contract(self) -> None:
+        partial = textwrap.dedent(
+            """\
+            model:
+              provider: ${HERMES_MODEL_PROVIDER}
+              default: ${HERMES_MODEL_DEFAULT}
+              key_env: HERMES_GATEWAY_API_KEY
+            """
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(NAMED_PROVIDER, result.stdout)
+
+    def test_rejects_wrong_named_provider_base_url(self) -> None:
+        partial = config_partial().replace(
+            "base_url: ${HERMES_MODEL_BASE_URL}",
+            "base_url: https://wrong.example/v1",
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("base_url", result.stdout)
+
+    def test_rejects_duplicate_named_provider_base_url_with_effective_wrong_value(self) -> None:
+        partial = config_partial().replace(
+            "    base_url: ${HERMES_MODEL_BASE_URL}\n",
+            "    base_url: ${HERMES_MODEL_BASE_URL}\n"
+            "    base_url: https://wrong.example/v1\n",
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("base_url", result.stdout)
+
+    def test_rejects_duplicate_each_other_named_provider_contract_scalar(self) -> None:
+        cases = (
+            ("key_env", "HERMES_GATEWAY_API_KEY", "OTHER_API_KEY"),
+            ("default_model", "${HERMES_MODEL_DEFAULT}", "wrong/model"),
+        )
+        for key, expected, wrong in cases:
+            with self.subTest(key=key):
+                partial = config_partial().replace(
+                    f"    {key}: {expected}\n",
+                    f"    {key}: {expected}\n    {key}: {wrong}\n",
+                )
+                result = self.run_checker(manifest(), partial)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(key, result.stdout)
+
+    def test_rejects_mismatched_scalar_quotes(self) -> None:
+        partial = config_partial().replace(
+            "base_url: ${HERMES_MODEL_BASE_URL}",
+            'base_url: "${HERMES_MODEL_BASE_URL}\'',
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("base_url", result.stdout)
+
+    def test_rejects_wrong_named_provider_key_env_even_if_model_key_env_matches(self) -> None:
+        partial = config_partial().replace(
+            "key_env: HERMES_GATEWAY_API_KEY",
+            "key_env: OTHER_API_KEY",
+        )
+        partial += "  key_env: HERMES_GATEWAY_API_KEY\n"
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("key_env", result.stdout)
+
+    def test_rejects_wrong_named_provider_default_model(self) -> None:
+        partial = config_partial().replace(
+            "default_model: ${HERMES_MODEL_DEFAULT}",
+            "default_model: wrong/model",
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("default_model", result.stdout)
+
+    def test_rejects_hard_coded_model_provider(self) -> None:
+        partial = config_partial().replace(
+            "provider: ${HERMES_MODEL_PROVIDER}",
+            f"provider: {NAMED_PROVIDER}",
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("environment-driven", result.stdout)
+
+    def test_rejects_duplicate_model_provider_with_effective_wrong_value(self) -> None:
+        partial = config_partial().replace(
+            "  provider: ${HERMES_MODEL_PROVIDER}\n",
+            "  provider: ${HERMES_MODEL_PROVIDER}\n  provider: custom\n",
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("model.provider", result.stdout)
+
+    def test_rejects_mismatched_model_provider_quotes(self) -> None:
+        partial = config_partial().replace(
+            "provider: ${HERMES_MODEL_PROVIDER}",
+            'provider: "${HERMES_MODEL_PROVIDER}\'',
+        )
+        result = self.run_checker(manifest(), partial)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("model.provider", result.stdout)
 
 
 if __name__ == "__main__":

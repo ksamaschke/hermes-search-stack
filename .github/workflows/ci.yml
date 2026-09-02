@@ -67,6 +67,8 @@ jobs:
         run: python3 scripts/test-hermes-profile-env-check.py
       - name: test profile credential synchronization
         run: python3 scripts/test-profile-env.py
+      - name: test persistent config migration
+        run: python3 scripts/test-bootstrap-config.py
       - name: assert Hermes wrapper stays non-interactive
         run: |
           grep -A2 '^      - args:$' /tmp/base.yaml | grep -q -- '- sleep' || {

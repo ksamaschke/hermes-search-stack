@@ -1,10 +1,17 @@
+providers:
+  # The pinned Hermes runtime resolves `key_env` for a custom endpoint through
+  # a named provider. Bare `custom` plus model.base_url skips that lookup and
+  # can fall back to the literal credential "no-key-required".
+  hermes-search-stack:
+    base_url: ${HERMES_MODEL_BASE_URL}
+    key_env: HERMES_GATEWAY_API_KEY
+    default_model: ${HERMES_MODEL_DEFAULT}
+
 model:
-  # Provider/base_url/model are environment-specific: set them in an overlay.
-  # `key_env` names the ENV VAR holding the key - never the key itself.
+  # Keep the selector environment-driven for deliberate provider overrides.
+  # Stack defaults select the named OpenAI-compatible provider above.
   provider: ${HERMES_MODEL_PROVIDER}
   default: ${HERMES_MODEL_DEFAULT}
-  base_url: ${HERMES_MODEL_BASE_URL}
-  key_env: HERMES_GATEWAY_API_KEY
 
 plugins:
   # Deny-list only.

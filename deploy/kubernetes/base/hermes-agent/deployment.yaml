@@ -185,8 +185,8 @@ spec:
                   key: firecrawl-url
                   optional: true
             # --- Model gateway credential -----------------------------------
-            # Named by model.key_env in config.yaml. The VALUE lives in a
-            # Secret that is never part of this repository.
+            # Named by providers.hermes-search-stack.key_env in config.yaml.
+            # The VALUE lives in a Secret that is never part of this repository.
             - name: HERMES_GATEWAY_API_KEY
               valueFrom:
                 secretKeyRef:

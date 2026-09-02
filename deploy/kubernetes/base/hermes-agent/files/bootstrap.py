@@ -4,9 +4,9 @@
 Runs as an init container on every pod start. Idempotent by design:
 - Keys this stack owns are enforced (search backend, model routing).
 - Any other key the user set via the WebUI / CLI is preserved.
-- The model key is stored only in the owner-only default-profile .env; ordinary
-  model config contains its env-var name. The API-server key is synchronized to
-  both owner-only files because the platform enrolment contract requires it.
+- The model key is stored only in the owner-only default-profile .env; the named
+  provider config contains its env-var name. The API-server key is synchronized
+  to both owner-only files because the platform enrolment contract requires it.
 """
 import os
 import pathlib
@@ -80,6 +80,25 @@ def prune(node):
     return node
 
 merged = prune(merged)
+
+# Retire model-level custom-provider fields after switching to this stack's
+# named provider. Deep merge preserves absent PVC keys, so removing these from
+# the partial alone would leave stale endpoint/auth routing active indefinitely.
+desired_providers = desired.get("providers")
+desired_model = desired.get("model")
+uses_named_provider = (
+    isinstance(desired_providers, dict)
+    and "hermes-search-stack" in desired_providers
+) or (
+    isinstance(desired_model, dict)
+    and desired_model.get("provider") == "hermes-search-stack"
+)
+merged_model = merged.get("model")
+if uses_named_provider and isinstance(merged_model, dict):
+    for legacy_key in ("base_url", "key_env"):
+        if legacy_key in merged_model:
+            merged_model.pop(legacy_key)
+            print(f"dropped legacy model.{legacy_key}", flush=True)
 
 # --- Managed paths: the ConfigMap wins, always -------------------------------
 #

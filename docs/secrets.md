@@ -19,9 +19,10 @@ or manage them with External Secrets, Sealed Secrets, SOPS, or Vault/OpenBao.
   error anywhere.
 
 - **`model-api-key`** — the credential for your upstream model gateway.
-  Referenced indirectly: `config.yaml` stores only `key_env:
-  HERMES_GATEWAY_API_KEY`, and the deployment populates that env var from this
-  key. The value never appears in a ConfigMap, a manifest, or Git.
+  Referenced indirectly: the default `providers.hermes-search-stack` contract
+  stores only `key_env: HERMES_GATEWAY_API_KEY`, and the deployment populates
+  that env var from this key. The value never appears in a ConfigMap, a
+  manifest, or Git. Native provider overrides use their own auth contracts.
 
 ### `hermes-webui-secrets`
 
