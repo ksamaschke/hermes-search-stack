@@ -63,6 +63,19 @@ A reasonable middle ground is Kata for `firecrawl-playwright` (the browser)
 and gVisor for the agent. Nothing stops you mixing them — the patches are
 independent.
 
+### Firecrawl CPU admission under gVisor
+
+Firecrawl also starts queue workers inside `firecrawl-api`. Its advisory CPU
+admission monitor uses `systeminformation.currentLoad()`, which can return
+`NaN` under runsc even though the pod is healthy. Since `NaN` is below no
+threshold, unmodified workers reject every job as `WORKER STALLED`.
+
+The sandboxed overlay preloads a small compatibility shim into the API harness
+and its child workers. Finite CPU samples pass through unchanged; unavailable
+or non-finite samples fall back to 0% advisory load. Kubernetes' hard CPU limit
+and Firecrawl's memory admission gate remain active, and the pod stays inside
+gVisor. The base deployment does not load the shim.
+
 ## Verifying it took effect
 
 ```bash

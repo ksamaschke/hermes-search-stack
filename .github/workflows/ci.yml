@@ -41,6 +41,15 @@ jobs:
           count=$(grep -c 'runtimeClassName' /tmp/sandboxed.yaml)
           echo "runtimeClassName occurrences: $count"
           [ "$count" -eq 3 ] || { echo "expected 3 sandboxed workloads"; exit 1; }
+      - name: assert Firecrawl sandbox compatibility contract
+        run: |
+          grep -q 'NODE_OPTIONS' /tmp/sandboxed.yaml
+          grep -q -- '--require=/opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs' /tmp/sandboxed.yaml
+          grep -q 'NODE_PATH' /tmp/sandboxed.yaml
+          grep -q 'value: /app/node_modules' /tmp/sandboxed.yaml
+          grep -q 'name: firecrawl-systeminformation-compat-' /tmp/sandboxed.yaml
+      - name: test Firecrawl sandbox CPU compatibility shim
+        run: node scripts/test-firecrawl-systeminformation-compat.cjs
       - name: assert every image is digest-pinned
         run: |
           # Any `image:` without an @sha256: pin is a floating tag.
