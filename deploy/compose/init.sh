@@ -55,7 +55,8 @@ chmod 600 .env
 
 echo
 echo "done. Remaining manual step: set your model gateway in .env"
-echo "  HERMES_MODEL_DEFAULT / HERMES_MODEL_BASE_URL / HERMES_GATEWAY_API_KEY"
+echo "  HERMES_MODEL_DEFAULT / FIRECRAWL_MODEL_DEFAULT"
+echo "  HERMES_MODEL_BASE_URL / HERMES_GATEWAY_API_KEY"
 echo
 echo "then:  docker compose up -d"
 echo "admin UI password:"

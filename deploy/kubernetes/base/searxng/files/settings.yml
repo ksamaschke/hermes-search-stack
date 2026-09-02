@@ -1,5 +1,17 @@
 use_default_settings: true
 
+# The image's currently enabled general-search defaults (Brave, DuckDuckGo,
+# Google and Startpage) can all reject one datacenter/home egress at once.
+# Keep the upstream catalogue, but explicitly enable independent fallbacks so a
+# default query still returns results when those four engines challenge us.
+engines:
+  - name: bing
+    disabled: false
+  - name: mwmbl
+    disabled: false
+  - name: wiby
+    disabled: false
+
 general:
   instance_name: "Hermes Search Stack"
   # Do not leak stack traces to the caller.

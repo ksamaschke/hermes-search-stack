@@ -56,7 +56,7 @@ def deployment(
                     "MODEL_NAME",
                     "configMapKeyRef",
                     "hermes-agent-runtime",
-                    "model-default",
+                    "firecrawl-model",
                 ),
             )
         )
@@ -92,12 +92,12 @@ COMPOSE = textwrap.dedent(
         environment:
           OPENAI_API_KEY: "${HERMES_GATEWAY_API_KEY:?set the gateway key}"
           OPENAI_BASE_URL: "${HERMES_MODEL_BASE_URL:?set the gateway URL}"
-          MODEL_NAME: "${HERMES_MODEL_DEFAULT:?set the model}"
+          MODEL_NAME: "${FIRECRAWL_MODEL_DEFAULT:?set the model}"
       firecrawl-api-helper:
         environment:
           OPENAI_API_KEY: "${HERMES_GATEWAY_API_KEY}"
           OPENAI_BASE_URL: "${HERMES_MODEL_BASE_URL}"
-          MODEL_NAME: "${HERMES_MODEL_DEFAULT}"
+          MODEL_NAME: "${FIRECRAWL_MODEL_DEFAULT}"
     """
 )
 
@@ -151,7 +151,7 @@ class FirecrawlExtractionEnvironmentTests(unittest.TestCase):
                     "MODEL_NAME",
                     "configMapKeyRef",
                     "hermes-agent-runtime",
-                    "model-default",
+                    "firecrawl-model",
                 ),
             )
         )
@@ -210,7 +210,7 @@ class FirecrawlExtractionEnvironmentTests(unittest.TestCase):
                 "HERMES_MODEL_BASE_URL",
                 "set the gateway URL",
             ),
-            "MODEL_NAME": ("HERMES_MODEL_DEFAULT", "set the model"),
+            "MODEL_NAME": ("FIRECRAWL_MODEL_DEFAULT", "set the model"),
         }
         for env_name, (variable, message) in bindings.items():
             with self.subTest(env_name=env_name):
@@ -237,7 +237,7 @@ class FirecrawlExtractionEnvironmentTests(unittest.TestCase):
                 "HERMES_MODEL_BASE_URL",
                 "set the gateway URL",
             ),
-            "MODEL_NAME": ("HERMES_MODEL_DEFAULT", "set the model"),
+            "MODEL_NAME": ("FIRECRAWL_MODEL_DEFAULT", "set the model"),
         }
         for env_name, (variable, message) in bindings.items():
             with self.subTest(env_name=env_name):
@@ -258,7 +258,7 @@ class FirecrawlExtractionEnvironmentTests(unittest.TestCase):
         replacements = {
             "HERMES_GATEWAY_API_KEY": "OTHER_API_KEY",
             "HERMES_MODEL_BASE_URL": "OTHER_BASE_URL",
-            "HERMES_MODEL_DEFAULT": "OTHER_MODEL",
+            "FIRECRAWL_MODEL_DEFAULT": "OTHER_MODEL",
         }
         for required, wrong in replacements.items():
             with self.subTest(required=required):
