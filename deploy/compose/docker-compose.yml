@@ -17,7 +17,7 @@ name: hermes-search-stack
 services:
   # ---------------------------------------------------------------- search --
   searxng:
-    image: docker.io/searxng/searxng:2026.8.29-d226b78bc@sha256:b36af7984b87191b595bc5301418ed6432c047668a4547ab531a7439b816fac3
+    image: docker.io/searxng/searxng:2026.9.3-8f452ee89@sha256:f5b40cdd30e658df7cc41ac4a5e7e221c5fe6936bd4c1b704f851004efbc1faa
     restart: unless-stopped
     environment:
       SEARXNG_BASE_URL: "http://searxng:8080/"
@@ -31,7 +31,7 @@ services:
     networks: [stack]
 
   searxng-valkey:
-    image: docker.io/valkey/valkey:8-alpine@sha256:e0eb7c480958d32bdc4357a74bdd70653ae15f2f9b4c93c4a5a9fad1dc471c84
+    image: docker.io/valkey/valkey:9.0.6-alpine@sha256:a1c759304d676744ad2527876442991e8070733ae6f49e2f35f11bdffe28b20b
     restart: unless-stopped
     command: ["valkey-server", "--save", "", "--appendonly", "no"]
     networks: [stack]
@@ -40,7 +40,7 @@ services:
   # Self-hosted Firecrawl: no credit metering, no external account.
   # Disable the whole scraper with:  docker compose --profile no-scraper up -d
   firecrawl-api:
-    image: ghcr.io/firecrawl/firecrawl:2.10.1@sha256:a7a8c9b2f81276c83a90d6d8877b2ecc953805c8feabe2cd5783be28e750cc88
+    image: ghcr.io/firecrawl/firecrawl:2.11.209-production@sha256:cebde741a0e6e8711f6714da0aab507f1285d3a083594728df23a31e19eeb7fb
     restart: unless-stopped
     command: ["node", "dist/src/harness.js", "--start-docker"]
     environment:
@@ -81,7 +81,7 @@ services:
     networks: [stack]
 
   firecrawl-playwright:
-    image: ghcr.io/firecrawl/playwright-service:latest@sha256:468009bae00911d40d7120d58489a1d529362c22c45585cb9076094fe61b0025
+    image: ghcr.io/firecrawl/playwright-service@sha256:df1a393ce8bfc3801570a826a9b0dcc400ae48789adb4a0ad9d6cbf0229b059b
     restart: unless-stopped
     environment:
       PORT: "3000"
@@ -91,13 +91,13 @@ services:
     networks: [stack]
 
   firecrawl-redis:
-    image: docker.io/valkey/valkey:8-alpine@sha256:e0eb7c480958d32bdc4357a74bdd70653ae15f2f9b4c93c4a5a9fad1dc471c84
+    image: docker.io/valkey/valkey:9.0.6-alpine@sha256:a1c759304d676744ad2527876442991e8070733ae6f49e2f35f11bdffe28b20b
     restart: unless-stopped
     command: ["valkey-server", "--bind", "0.0.0.0", "--save", "", "--appendonly", "no"]
     networks: [stack]
 
   firecrawl-rabbitmq:
-    image: docker.io/library/rabbitmq:4-alpine@sha256:4b93812804b41679198d340bfb644ff93f270a1658b28cb57dab6c85516a5da1
+    image: docker.io/library/rabbitmq:4.3.5-alpine@sha256:3486d98205df3d6395ed70e7924baa13b561cbac54116c0ddae5b0b7382bbabd
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
@@ -109,7 +109,7 @@ services:
 
   firecrawl-nuq-postgres:
     # Purpose-built image with the NuQ queue extensions. Stock postgres fails.
-    image: ghcr.io/firecrawl/nuq-postgres:latest@sha256:aed86f62858f29bd971abddcdeb301c12888098d2cf5d33c1ba42b053bc460f6
+    image: ghcr.io/firecrawl/nuq-postgres@sha256:aed86f62858f29bd971abddcdeb301c12888098d2cf5d33c1ba42b053bc460f6
     restart: unless-stopped
     environment:
       POSTGRES_USER: "postgres"
@@ -121,7 +121,7 @@ services:
 
   # ----------------------------------------------------------------- agent --
   hermes-agent:
-    image: docker.io/nousresearch/hermes-agent:v2026.8.27@sha256:e0df6adebddf29b91112aefc999d4aaf6846c9eb544faca5672a16a13590ff79
+    image: docker.io/nousresearch/hermes-agent:v2026.8.31@sha256:64923faeae267792bf9bf87fe3b4c4869e35004e360c7df01730ad801b74d524
     restart: unless-stopped
     environment:
       HERMES_HOME: /opt/data
@@ -155,7 +155,7 @@ services:
 
   # ------------------------------------------------------------- admin UI --
   hermes-webui:
-    image: ghcr.io/nesquena/hermes-webui:0.38.5@sha256:bfd85f546c3aa282c65107ce15d348a9d87f2c8b6594d46ae60e0d06dd1964c9
+    image: ghcr.io/nesquena/hermes-webui:0.52.113@sha256:48ba6ee4a837079955c00e997b751065cc0324ae6eaa0f2fec592c8f4b2a746e
     restart: unless-stopped
     depends_on:
       - hermes-agent
@@ -178,7 +178,7 @@ services:
 
   # -------------------------------------------------------------- chat UI --
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main@sha256:c792953395b43d4f49085fa4026850c5e923578345ebeaf56eabd980bcfc273a
+    image: ghcr.io/open-webui/open-webui:v0.11.3@sha256:751b617714b91e4cfd0186a509c72480c858e012976103b09a30dad053c36175
     restart: unless-stopped
     depends_on:
       - hermes-agent
