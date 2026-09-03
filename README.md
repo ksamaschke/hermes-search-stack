@@ -17,8 +17,8 @@ infrastructure:
 
 Plus an optional fifth:
 
-- **[Firecrawl](https://github.com/firecrawl/firecrawl)** (self-hosted) — the website scraper. Renders pages in a
-  sandboxed Playwright browser and returns clean markdown or structured JSON.
+- **[Firecrawl](https://github.com/firecrawl/firecrawl)** (self-hosted) — the website scraper. Renders pages in an
+  isolated Playwright browser and returns clean markdown or structured JSON.
 
 ## Why these choices
 
@@ -144,9 +144,8 @@ Secret/ConfigMap environment bindings. Compose maps
 the gateway's OpenAI Responses API for structured extraction, so select a model
 and route that support that endpoint and strict JSON output.
 
-See [docs/secrets.md](docs/secrets.md) for the full contract,
-[docs/sso.md](docs/sso.md) for OIDC/Keycloak, and
-[docs/sandboxing.md](docs/sandboxing.md) for gVisor/Kata.
+See [docs/secrets.md](docs/secrets.md) for the full contract and
+[docs/sso.md](docs/sso.md) for OIDC/Keycloak.
 
 ## Storage
 
@@ -156,24 +155,6 @@ config, sessions, memory, skills, and workspace. The default StorageClass is
 
 Hermes WebUI mounts the *same* volume (it is an admin surface over the same
 state), so it is pinned to the agent's node with a `podAffinity` rule.
-
-## Sandboxed runtimes
-
-The agent executes model-authored shell commands and Firecrawl renders
-untrusted web pages, so both are worth isolating at the kernel boundary. The
-`sandboxed` overlay applies a `RuntimeClass`:
-
-```bash
-kubectl get runtimeclass          # see what your cluster actually has
-```
-
-It defaults to **gVisor** (`runsc`). For **Kata Containers**, change the
-`value:` fields in
-[deploy/kubernetes/overlays/sandboxed/kustomization.yaml](deploy/kubernetes/overlays/sandboxed/kustomization.yaml)
-to `kata` (or `kata-qemu` / `kata-fc`).
-
-Applying a RuntimeClass your cluster does not have leaves pods `Pending` with a
-`FailedCreatePodSandBox` event. Use the plain `base` if you have neither.
 
 ## Running without the scraper
 
@@ -216,12 +197,11 @@ deploy/
   kubernetes/
     base/            # environment-agnostic manifests (all 5 components)
     overlays/
-      sandboxed/     # + gVisor/Kata RuntimeClass
       example/       # template: copy, edit, deploy
     argocd/          # Argo CD Application
   compose/           # VM / bare-metal fallback
 scripts/             # secret creation + verification
-docs/                # secrets, SSO, sandboxing, troubleshooting
+docs/                # secrets, SSO, troubleshooting
 ```
 
 ## License
