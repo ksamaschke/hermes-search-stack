@@ -67,8 +67,8 @@ security:
   # Also enforced via HERMES_LAZY_INSTALL_TARGET="" in the deployment, because
   # config.yaml lives on the PVC and can be shadowed by stale state.
   allow_lazy_installs: false
-  # The agent runs inside a sandboxed runtime with a private network path
-  # to SearXNG/Firecrawl, both of which are cluster-internal hostnames.
+  # The agent uses a private network path to SearXNG/Firecrawl, both of which
+  # are cluster-internal hostnames.
   allow_private_urls: true
 
 gateway:

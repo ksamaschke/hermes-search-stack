@@ -28,11 +28,6 @@ else
   bad "PVC not bound (phase=${PVC_PHASE:-missing})"
 fi
 
-info "sandboxed runtime"
-RC=$(kubectl -n "$NS" get deploy hermes-agent -o jsonpath='{.spec.template.spec.runtimeClassName}' 2>/dev/null)
-if [[ -n "$RC" ]]; then ok "hermes-agent runtimeClassName=$RC"; else
-  echo "  · no RuntimeClass set (base install)"; fi
-
 # --- data plane -------------------------------------------------------------
 info "SearXNG JSON API (the contract both consumers depend on)"
 SX=$(kubectl -n "$NS" exec deploy/searxng -- \

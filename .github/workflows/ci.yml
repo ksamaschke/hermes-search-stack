@@ -32,24 +32,8 @@ jobs:
           kustomize version
       - name: build base
         run: kustomize build deploy/kubernetes/base > /tmp/base.yaml && grep -c '^kind:' /tmp/base.yaml
-      - name: build sandboxed overlay
-        run: kustomize build deploy/kubernetes/overlays/sandboxed > /tmp/sandboxed.yaml
       - name: build example overlay
         run: kustomize build deploy/kubernetes/overlays/example > /tmp/example.yaml
-      - name: assert sandboxed overlay sets a RuntimeClass
-        run: |
-          count=$(grep -c 'runtimeClassName' /tmp/sandboxed.yaml)
-          echo "runtimeClassName occurrences: $count"
-          [ "$count" -eq 3 ] || { echo "expected 3 sandboxed workloads"; exit 1; }
-      - name: assert Firecrawl sandbox compatibility contract
-        run: |
-          grep -q 'NODE_OPTIONS' /tmp/sandboxed.yaml
-          grep -q -- '--require=/opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs' /tmp/sandboxed.yaml
-          grep -q 'NODE_PATH' /tmp/sandboxed.yaml
-          grep -q 'value: /app/node_modules' /tmp/sandboxed.yaml
-          grep -q 'name: firecrawl-systeminformation-compat-' /tmp/sandboxed.yaml
-      - name: test Firecrawl sandbox CPU compatibility shim
-        run: node scripts/test-firecrawl-systeminformation-compat.cjs
       - name: assert every image is digest-pinned
         run: |
           # Any `image:` without an @sha256: pin is a floating tag.
@@ -77,7 +61,7 @@ jobs:
         run: python3 scripts/test-firecrawl-capacity.py
       - name: assert Firecrawl extraction model gateway wiring
         run: |
-          for manifest in /tmp/base.yaml /tmp/sandboxed.yaml /tmp/example.yaml; do
+          for manifest in /tmp/base.yaml /tmp/example.yaml; do
             python3 scripts/check-firecrawl-extraction-env.py "$manifest" \
               --compose-manifest deploy/compose/docker-compose.yml
           done

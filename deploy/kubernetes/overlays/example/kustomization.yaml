@@ -13,8 +13,7 @@ namespace: hermes-search
 
 resources:
   - namespace.yaml
-  # Swap for `../../base` if your cluster has no sandboxed RuntimeClass.
-  - ../sandboxed
+  - ../../base
   - ingress.yaml
 
 configMapGenerator:

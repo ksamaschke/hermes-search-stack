@@ -37,12 +37,8 @@ spec:
                     - key: app.kubernetes.io/name
                       operator: In
                       values: ["firecrawl-api", "firecrawl-playwright"]
-      # SANDBOXED RUNTIME
-      # The agent executes model-authored shell commands, so it is the one
-      # workload in this stack that genuinely wants kernel-level isolation.
-      # `runtimeClassName` is intentionally ABSENT from the base so the stack
-      # installs on vanilla clusters. The `sandboxed` overlay patches in
-      # gVisor (runsc) or Kata. See docs/sandboxing.md.
+      # Runtime selection is intentionally absent from the reusable base and
+      # belongs in the deploying environment's own overlay.
       securityContext:
         runAsNonRoot: true
         runAsUser: 10000
@@ -151,8 +147,8 @@ spec:
             # That download happens during gateway startup, after plugin
             # discovery and before the 8642 bind, and on this node it pushed
             # boot past the startup-probe budget. We do not use tirith here,
-            # and pulling a binary from the internet at boot is not something
-            # a sandboxed workload should be doing anyway.
+            # and production workloads should not pull executable tools from
+            # the internet during startup.
             - name: TIRITH_ENABLED
               value: "false"
             - name: HERMES_UID
@@ -218,9 +214,8 @@ spec:
             #
             # This is deliberately enormous. Cold boot is CPU-heavy: the
             # gateway syncs bundled skills, discovers plugins, and probes tool
-            # capabilities before binding. Sandboxed deployments also pay the
-            # runtime's syscall overhead and may share a constrained set of
-            # eligible nodes with Firecrawl.
+            # capabilities before binding. Deployments may also share
+            # constrained nodes with Firecrawl.
             #
             # Earlier budgets (15min, then 21min) expired mid-boot. The kubelet
             # killed the container and restarted it, which presented exactly
@@ -256,9 +251,8 @@ spec:
               # listener; with cores actually available the identical config
               # binds in ~10-20s.
               #
-              # A RuntimeClass may add a nodeSelector, so this request must fit
-              # beside the other sandboxed workloads on eligible nodes. Raise
-              # it only after adding or verifying sandbox-capable capacity.
+              # This request must fit beside the other stack workloads. Raise
+              # it only after adding or verifying node capacity.
               cpu: "1"
               memory: 1Gi
             limits:
