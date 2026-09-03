@@ -375,7 +375,6 @@ spec:
             # false negative removes the Service endpoint and makes the
             # Firecrawl harness exit on ECONNREFUSED.
             timeoutSeconds: 10
-            failureThreshold: 6
           resources:
             requests:
               cpu: 100m
