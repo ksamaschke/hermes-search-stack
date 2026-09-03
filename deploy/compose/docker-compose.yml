@@ -68,6 +68,7 @@ services:
       # One consumer per queue is the safe default for a small self-hosted
       # node. Increase only together with the service's CPU allocation.
       NUM_WORKERS_PER_QUEUE: "1"
+      NUQ_WORKER_COUNT: "1"
       MAX_CONCURRENT_JOBS: "3"
     depends_on:
       firecrawl-rabbitmq:
