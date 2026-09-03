@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camofox
+  labels:
+    app.kubernetes.io/name: camofox
+    app.kubernetes.io/component: browser
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: camofox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: camofox
+        app.kubernetes.io/component: browser
+        app.kubernetes.io/part-of: hermes-search-stack
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: camofox
+          image: ghcr.io/redf0x1/camofox-browser:2.4.7@sha256:afaaf9795af8793f3e6353e9e5dd5b03713b6ffed6e80c1b0a179575322bcff0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9377
+            - name: vnc
+              containerPort: 6080
+          env:
+            # Image default binds 127.0.0.1, which would make the container
+            # unreachable from the Service. Binding non-loopback requires
+            # CAMOFOX_API_KEY (enforced by the image itself in "auto" mode).
+            - name: CAMOFOX_HOST
+              value: "0.0.0.0"
+            - name: CAMOFOX_PORT
+              value: "9377"
+            - name: CAMOFOX_AUTH_MODE
+              value: "auto"
+            - name: CAMOFOX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: camofox-secret
+                  key: api-key
+          volumeMounts:
+            # Persistent Firefox profiles (cookies, localStorage, IndexedDB)
+            # live under this path; see camofox-browser README "Persistent
+            # Browser Profiles".
+            - name: profiles
+              mountPath: /home/node/.camofox
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: profiles
+          persistentVolumeClaim:
+            claimName: camofox-profiles
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi

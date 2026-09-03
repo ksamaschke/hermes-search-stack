@@ -15,10 +15,13 @@ infrastructure:
 - **[SearXNG](https://github.com/searxng/searxng)** — privacy-respecting metasearch across 70+ engines. The
   default (and only) search endpoint for both the agent and Open WebUI.
 
-Plus an optional fifth:
+Plus two optional components:
 
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** (self-hosted) — the website scraper. Renders pages in an
   isolated Playwright browser and returns clean markdown or structured JSON.
+- **[Camofox](https://github.com/redf0x1/camofox-browser)** (self-hosted) — a local, anti-detection browser backend
+  for the agent's interactive browser tool (Camoufox: a Firefox fork with C++-level fingerprint spoofing, not just
+  JS patching). No cloud provider, no API subscription — it just runs in-cluster.
 
 ## Why these choices
 
@@ -36,6 +39,15 @@ ceiling is worker concurrency and CPU.
 It is also the heaviest component here (API + workers + Playwright + Redis +
 RabbitMQ + Postgres). If you would rather not run it, the stack degrades
 cleanly to search-only — see [Running without the scraper](#running-without-the-scraper).
+
+**Camofox is opt-in and off the model-gateway critical path.** The agent's
+browser tool works without it (falling back to the bundled `agent-browser` CLI
+and local Chromium, or a configured cloud provider), but Camofox's Firefox-based
+anti-fingerprinting makes interactive browsing far less likely to be blocked.
+It talks to the agent over a plain REST API on port 9377 and needs no outbound
+internet access beyond whatever pages you send it to. Remove the `camofox`
+resource from `deploy/kubernetes/base/kustomization.yaml` and the two
+`CAMOFOX_*` env entries on `hermes-agent` to drop it entirely.
 
 **One explicit configuration detail worth knowing:** Hermes' environment
 auto-detection ranks `FIRECRAWL_API_URL` *above* `SEARXNG_URL`. If both are
@@ -74,6 +86,9 @@ provider credential.
                                    │  SearXNG   │   │  Firecrawl   │
                                    │  (search)  │◀──│  (scrape)    │
                                    └────────────┘   └──────────────┘
+
+   Hermes Agent also talks to an optional Camofox (anti-detection browser)
+   for its interactive browser tool — not shown, cluster-internal only.
 
    Only the two UIs are exposed. SearXNG and Firecrawl are cluster-internal.
 ```

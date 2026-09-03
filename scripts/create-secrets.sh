@@ -92,10 +92,17 @@ if skip_or_rotate firecrawl-secrets; then
   echo "  firecrawl-secrets created"
 fi
 
+# --- camofox-secret (optional component) -------------------------------------
+if skip_or_rotate camofox-secret; then
+  kubectl -n "$NS" create secret generic camofox-secret \
+    --from-literal=api-key="$(openssl rand -hex 32)" >/dev/null
+  echo "  camofox-secret created"
+fi
+
 echo
 echo "done. Secrets in $NS:"
 kubectl -n "$NS" get secrets \
   hermes-agent-secrets hermes-webui-secrets open-webui-secrets \
-  searxng-secret firecrawl-secrets \
+  searxng-secret firecrawl-secrets camofox-secret \
   -o custom-columns=NAME:.metadata.name,KEYS:.data --no-headers 2>/dev/null \
   | sed 's/map\[/ /; s/\]//' || true
