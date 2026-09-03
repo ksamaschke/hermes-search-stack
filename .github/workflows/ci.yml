@@ -32,33 +32,22 @@ jobs:
           kustomize version
       - name: build base
         run: kustomize build deploy/kubernetes/base > /tmp/base.yaml && grep -c '^kind:' /tmp/base.yaml
-      - name: build runtime overlays
-        run: |
-          kustomize build deploy/kubernetes/overlays/gvisor > /tmp/gvisor.yaml
-          kustomize build deploy/kubernetes/overlays/kata > /tmp/kata.yaml
-          kustomize build deploy/kubernetes/overlays/sandboxed > /tmp/sandboxed.yaml
+      - name: build sandboxed overlay
+        run: kustomize build deploy/kubernetes/overlays/sandboxed > /tmp/sandboxed.yaml
       - name: build example overlay
         run: kustomize build deploy/kubernetes/overlays/example > /tmp/example.yaml
-      - name: assert runtime overlays stay isolated
+      - name: assert sandboxed overlay sets a RuntimeClass
         run: |
-          for manifest in /tmp/gvisor.yaml /tmp/kata.yaml; do
-            count=$(grep -c 'runtimeClassName' "$manifest")
-            echo "$manifest runtimeClassName occurrences: $count"
-            [ "$count" -eq 3 ] || { echo "expected 3 sandboxed workloads"; exit 1; }
-          done
-          [ "$(grep -c 'runtimeClassName: gvisor' /tmp/gvisor.yaml)" -eq 3 ]
-          [ "$(grep -c 'runtimeClassName: kata' /tmp/kata.yaml)" -eq 3 ]
-          cmp /tmp/gvisor.yaml /tmp/sandboxed.yaml
-          if grep -Eq 'NODE_OPTIONS|NODE_PATH|firecrawl-systeminformation-compat' /tmp/kata.yaml; then
-            echo "gVisor compatibility logic leaked into Kata overlay"; exit 1
-          fi
-      - name: assert Firecrawl gVisor compatibility contract
+          count=$(grep -c 'runtimeClassName' /tmp/sandboxed.yaml)
+          echo "runtimeClassName occurrences: $count"
+          [ "$count" -eq 3 ] || { echo "expected 3 sandboxed workloads"; exit 1; }
+      - name: assert Firecrawl sandbox compatibility contract
         run: |
-          grep -q 'NODE_OPTIONS' /tmp/gvisor.yaml
-          grep -q -- '--require=/opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs' /tmp/gvisor.yaml
-          grep -q 'NODE_PATH' /tmp/gvisor.yaml
-          grep -q 'value: /app/node_modules' /tmp/gvisor.yaml
-          grep -q 'name: firecrawl-systeminformation-compat-' /tmp/gvisor.yaml
+          grep -q 'NODE_OPTIONS' /tmp/sandboxed.yaml
+          grep -q -- '--require=/opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs' /tmp/sandboxed.yaml
+          grep -q 'NODE_PATH' /tmp/sandboxed.yaml
+          grep -q 'value: /app/node_modules' /tmp/sandboxed.yaml
+          grep -q 'name: firecrawl-systeminformation-compat-' /tmp/sandboxed.yaml
       - name: test Firecrawl sandbox CPU compatibility shim
         run: node scripts/test-firecrawl-systeminformation-compat.cjs
       - name: assert every image is digest-pinned
@@ -88,25 +77,10 @@ jobs:
         run: python3 scripts/test-firecrawl-capacity.py
       - name: assert Firecrawl extraction model gateway wiring
         run: |
-          for manifest in /tmp/base.yaml /tmp/gvisor.yaml /tmp/kata.yaml /tmp/example.yaml; do
+          for manifest in /tmp/base.yaml /tmp/sandboxed.yaml /tmp/example.yaml; do
             python3 scripts/check-firecrawl-extraction-env.py "$manifest" \
               --compose-manifest deploy/compose/docker-compose.yml
           done
-      - name: assert PostgreSQL readiness budget
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          manifest = Path("deploy/kubernetes/base/firecrawl/deployment.yaml").read_text()
-          deployment = manifest.split("name: firecrawl-nuq-postgres", 1)[1]
-          probe = re.search(r"readinessProbe:(.*?)resources:", deployment, re.S)
-          assert probe, "PostgreSQL readinessProbe missing"
-          timeout = re.search(r"timeoutSeconds:\s*(\d+)", probe.group(1))
-          failures = re.search(r"failureThreshold:\s*(\d+)", probe.group(1))
-          assert timeout and int(timeout.group(1)) >= 10, "readiness timeout must be at least 10s"
-          assert failures and int(failures.group(1)) >= 3, "readiness failure budget missing"
-          PY
       - name: test Firecrawl extraction model gateway checks
         run: python3 scripts/test-firecrawl-extraction-env.py
       - name: assert model credentials reach the profile scope

@@ -52,7 +52,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: render-config
-          image: ghcr.io/ksamaschke/hermes-search-stack/hermes-agent@sha256:edf1448ad3d0f67343bc3ca0893705b7549eaa786cbbaf95a18a070e6f58c7ef
+          image: docker.io/nousresearch/hermes-agent:v2026.8.27@sha256:e0df6adebddf29b91112aefc999d4aaf6846c9eb544faca5672a16a13590ff79
           imagePullPolicy: IfNotPresent
           command: ["python3", "/bootstrap/bootstrap.py"]
           env:
@@ -111,7 +111,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: hermes-agent
-          image: ghcr.io/ksamaschke/hermes-search-stack/hermes-agent@sha256:edf1448ad3d0f67343bc3ca0893705b7549eaa786cbbaf95a18a070e6f58c7ef
+          image: docker.io/nousresearch/hermes-agent:v2026.8.27@sha256:e0df6adebddf29b91112aefc999d4aaf6846c9eb544faca5672a16a13590ff79
           imagePullPolicy: IfNotPresent
           # The image self-supervises through s6. With no args, however,
           # main-wrapper.sh falls back to the interactive `drop hermes` CLI;

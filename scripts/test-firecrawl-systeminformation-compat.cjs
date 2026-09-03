@@ -8,7 +8,7 @@ const vm = require("node:vm");
 
 const shim = path.resolve(
   __dirname,
-  "../deploy/kubernetes/overlays/gvisor/firecrawl-systeminformation-compat.cjs",
+  "../deploy/kubernetes/overlays/sandboxed/firecrawl-systeminformation-compat.cjs",
 );
 let sample = { currentLoad: Number.NaN, marker: "preserved" };
 let shouldThrow = false;

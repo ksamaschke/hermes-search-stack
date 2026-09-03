@@ -1,106 +1,131 @@
 # Sandboxed container runtimes
 
-Hermes Agent executes model-authored commands, Firecrawl processes untrusted
-URLs, and Firecrawl Playwright renders arbitrary web pages. These three
-workloads benefit from kernel-boundary isolation.
+Two workloads in this stack process untrusted input:
 
-## Select the installed runtime
+- **Hermes Agent** executes shell commands the model writes.
+- **Firecrawl's Playwright service** renders arbitrary web pages in a browser.
 
-Check the cluster before choosing an overlay:
+Both are worth isolating at the kernel boundary rather than relying on
+namespaces alone. The `sandboxed` overlay does that with a `RuntimeClass`.
+
+## Check what your cluster has
 
 ```bash
 kubectl get runtimeclass
 ```
 
-The repository provides explicit, runtime-specific overlays:
+Typical output on a K3s cluster with the sandboxing addons installed:
+
+```
+NAME      HANDLER
+crun      crun
+gvisor    runsc
+kata      kata
+```
+
+If this returns nothing, your cluster has no sandboxed runtime — use
+`deploy/kubernetes/base` directly and skip this overlay.
+
+## Applying it
+
+The overlay defaults to **gVisor**:
 
 ```yaml
 resources:
-  - ../kata       # RuntimeClass name: kata
-# - ../gvisor     # RuntimeClass name: gvisor; handler: runsc
-# - ../../base    # no sandboxed RuntimeClass
+  - ../sandboxed      # instead of ../../base
 ```
 
-`deploy/kubernetes/overlays/sandboxed` remains a backward-compatible alias for
-`gvisor`. New deployments should use the named overlays so runtime-specific
-logic remains visible.
+## Switching to Kata Containers
 
-A RuntimeClass name is the `NAME` column, not the handler. If a cluster exposes
-`kata-qemu` or another name instead of `kata`, patch the Kata overlay in the
-private environment overlay rather than editing the reusable base.
+Edit
+[`deploy/kubernetes/overlays/sandboxed/kustomization.yaml`](../deploy/kubernetes/overlays/sandboxed/kustomization.yaml)
+and change each `value:` from `gvisor` to your handler's **RuntimeClass name**
+(the `NAME` column above, not the `HANDLER` column):
 
-## Kata Containers
+```yaml
+      - op: add
+        path: /spec/template/spec/runtimeClassName
+        value: kata          # or kata-qemu, kata-fc, kata-clh
+```
 
-`deploy/kubernetes/overlays/kata` applies `runtimeClassName: kata` to:
+## gVisor vs Kata for this stack
 
-- `hermes-agent`;
-- `firecrawl-api`;
-- `firecrawl-playwright`.
+**gVisor (`runsc`)** intercepts syscalls in userspace. Lower overhead, starts
+faster, and is usually already present on managed clusters. The tradeoff is an
+incomplete syscall surface — which matters here, because Playwright drives a
+full Chromium.
 
-Kata uses a lightweight VM per pod. It provides a full guest kernel and does
-not load any gVisor compatibility code. Expect higher memory overhead and a
-slower sandbox start than a namespace-only runtime.
+**Kata** boots a lightweight VM per pod. Stronger isolation and full kernel
+compatibility, at the cost of ~100-200 MB extra memory per pod and slower
+starts. If Chromium misbehaves under gVisor, Kata is the fix.
 
-## gVisor
+A reasonable middle ground is Kata for `firecrawl-playwright` (the browser)
+and gVisor for the agent. Nothing stops you mixing them — the patches are
+independent.
 
-`deploy/kubernetes/overlays/gvisor` applies `runtimeClassName: gvisor` to the
-same three workloads. gVisor intercepts syscalls in userspace and exposes a
-smaller kernel surface.
+### Firecrawl CPU admission under gVisor
 
-### Firecrawl CPU admission under runsc
+Firecrawl also starts queue workers inside `firecrawl-api`. Its advisory CPU
+admission monitor uses `systeminformation.currentLoad()`, which can return
+`NaN` under runsc even though the pod is healthy. Since `NaN` is below no
+threshold, unmodified workers reject every job as `WORKER STALLED`.
 
-Firecrawl's advisory CPU monitor uses `systeminformation.currentLoad()`. Under
-runsc that call can return a non-finite sample, causing every queue worker to
-report `WORKER STALLED`. The gVisor overlay therefore preloads
-`firecrawl-systeminformation-compat.cjs` into the API harness and its child
-workers. Finite CPU samples pass through; only unavailable or non-finite values
-fall back to 0% advisory load. Kubernetes CPU limits and Firecrawl's memory gate
-remain active.
+The sandboxed overlay preloads a small compatibility shim into the API harness
+and its child workers. Finite CPU samples pass through unchanged; unavailable
+or non-finite samples fall back to 0% advisory load. Kubernetes' hard CPU limit
+and Firecrawl's memory admission gate remain active, and the pod stays inside
+gVisor. The base deployment does not load the shim.
 
-This preload is intentionally absent from the Kata overlay.
-
-## Verify the rendered manifests
-
-Render before publishing an environment overlay:
+## Verifying it took effect
 
 ```bash
-kustomize build deploy/kubernetes/overlays/kata > /tmp/kata.yaml
-kustomize build deploy/kubernetes/overlays/gvisor > /tmp/gvisor.yaml
+kubectl -n hermes-search get pod -l app.kubernetes.io/name=hermes-agent \
+  -o jsonpath='{.items[0].spec.runtimeClassName}{"\n"}'
 ```
 
-Each manifest must contain exactly three `runtimeClassName` fields. The Kata
-manifest must contain no `NODE_OPTIONS`, `NODE_PATH`, or
-`firecrawl-systeminformation-compat` reference.
-
-## Verify the live rollout
+Then confirm from inside the sandbox. Under gVisor the kernel identifies
+itself:
 
 ```bash
-kubectl -n hermes-search get pods \
-  -o custom-columns='NAME:.metadata.name,RUNTIME:.spec.runtimeClassName,NODE:.spec.nodeName,READY:.status.containerStatuses[*].ready'
+kubectl -n hermes-search exec deploy/hermes-agent -- uname -a
+# gVisor reports a synthetic kernel version, e.g. "4.4.0" with gVisor in the
+# string, rather than your node's real kernel.
 ```
-
-For every sandboxed workload, confirm:
-
-1. `spec.runtimeClassName` matches the selected overlay;
-2. the node is eligible under the RuntimeClass scheduler selector;
-3. the pod is Ready without restarts caused by sandbox creation;
-4. the actual search/extraction path succeeds.
-
-A Ready pod alone is not proof that Firecrawl can render and extract a page.
 
 ## When pods stay Pending
 
-A missing or unsupported RuntimeClass produces a scheduling failure or an event
-such as:
+A `RuntimeClass` that does not exist on the cluster produces:
 
-```text
-FailedCreatePodSandBox ... RuntimeHandler "kata" not supported
+```
+Warning  FailedCreatePodSandBox  ...  RuntimeHandler "runsc" not supported
 ```
 
-Read the RuntimeClass and its scheduling selector, then count eligible Ready
-nodes. Do not replace Kata with gVisor merely to make the pod schedule; repair
-the cluster capability or choose the runtime deliberately in the private
-overlay.
+or the pod is never scheduled at all. Check with:
 
-Hermes WebUI shares the agent's RWO volume and follows it through pod affinity;
-it does not need its own RuntimeClass.
+```bash
+kubectl -n hermes-search describe pod -l app.kubernetes.io/name=hermes-agent | tail -20
+```
+
+Fix by pointing the overlay at a handler you actually have, or by deploying
+`base` without the overlay.
+
+## Node placement
+
+Sandboxed runtimes are often installed on a subset of nodes. If so, the
+`RuntimeClass` normally carries a `scheduling.nodeSelector` that handles
+placement automatically. If yours does not, add a nodeSelector in your overlay:
+
+```yaml
+patches:
+  - target:
+      kind: Deployment
+      name: hermes-agent
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          my.cluster/sandboxed: "true"
+```
+
+Remember that `hermes-webui` uses `podAffinity` to co-locate with the agent
+(they share an RWO volume), so it follows the agent automatically.
