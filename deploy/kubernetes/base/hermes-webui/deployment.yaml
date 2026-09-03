@@ -36,6 +36,30 @@ spec:
         fsGroup: 10000
         seccompProfile:
           type: RuntimeDefault
+      # Current Hermes WebUI images ship application files in /apptoo. Their
+      # rootless fallback uses `cp -a`, which cannot preserve the timestamp of
+      # the /app mount root under restricted runtimes. Seed a writable runtime
+      # volume without metadata preservation while remaining non-root.
+      initContainers:
+        - name: seed-webui-app
+          image: ghcr.io/nesquena/hermes-webui:0.52.113@sha256:48ba6ee4a837079955c00e997b751065cc0324ae6eaa0f2fec592c8f4b2a746e
+          command: ["/bin/sh", "-ec"]
+          args:
+            - cp -R /apptoo/. /app/; test -f /app/server.py
+          volumeMounts:
+            - name: app
+              mountPath: /app
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: hermes-webui
           image: ghcr.io/nesquena/hermes-webui:0.52.113@sha256:48ba6ee4a837079955c00e997b751065cc0324ae6eaa0f2fec592c8f4b2a746e
@@ -79,6 +103,8 @@ spec:
             - name: HERMES_API_URL
               value: "http://hermes-agent:8642"
           volumeMounts:
+            - name: app
+              mountPath: /app
             - name: data
               mountPath: /opt/data
           readinessProbe:
@@ -107,6 +133,8 @@ spec:
               # SETUID/SETGID to drop privileges, or the supervision tree dies.
               add: ["SETUID", "SETGID"]
       volumes:
+        - name: app
+          emptyDir: {}
         - name: data
           persistentVolumeClaim:
             claimName: hermes-agent-data
