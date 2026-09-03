@@ -1,77 +1,9 @@
-# Sandboxed-runtime overlay.
-#
-# Applies a RuntimeClass to the workloads that execute untrusted input:
-#   - hermes-agent  : runs model-authored shell commands
-#   - firecrawl-*   : renders attacker-controlled web pages in a browser
-#
-# Pick the handler your cluster actually has. Check with:
-#   kubectl get runtimeclass
-#
-# Common handlers:
-#   gvisor / runsc      - gVisor  (userspace kernel; broadest support)
-#   kata / kata-qemu    - Kata Containers (lightweight VM per pod)
-#   kata-fc             - Kata with Firecracker
-#
-# This overlay defaults to `gvisor`. To use Kata instead, change the `value:`
-# fields below (or run: kustomize edit ... / patch it in your own overlay).
-#
-# IMPORTANT: applying a RuntimeClass that does not exist on the cluster leaves
-# pods Pending with a FailedCreatePodSandBox / RuntimeClass-not-found event.
+# Backward-compatible alias for deployments that already reference the former
+# generic `sandboxed` path. New deployments should select `../gvisor` or
+# `../kata` explicitly so runtime-specific compatibility logic cannot leak
+# across runtimes.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../../base
-
-configMapGenerator:
-  - name: firecrawl-systeminformation-compat
-    files:
-      - firecrawl-systeminformation-compat.cjs
-
-patches:
-  - target:
-      kind: Deployment
-      name: hermes-agent
-    patch: |-
-      - op: add
-        path: /spec/template/spec/runtimeClassName
-        value: gvisor
-  - target:
-      kind: Deployment
-      name: firecrawl-playwright
-    patch: |-
-      - op: add
-        path: /spec/template/spec/runtimeClassName
-        value: gvisor
-  - target:
-      kind: Deployment
-      name: firecrawl-api
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: firecrawl-api
-      spec:
-        template:
-          spec:
-            runtimeClassName: gvisor
-            containers:
-              - name: api
-                env:
-                  # Preload the compatibility shim into the harness and every
-                  # inherited queue-worker process.
-                  - name: NODE_OPTIONS
-                    value: --require=/opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs
-                  # The preload lives outside /app, so make the image's own
-                  # dependencies resolvable from the mounted module.
-                  - name: NODE_PATH
-                    value: /app/node_modules
-                volumeMounts:
-                  - name: systeminformation-compat
-                    mountPath: /opt/firecrawl-compat/firecrawl-systeminformation-compat.cjs
-                    subPath: firecrawl-systeminformation-compat.cjs
-                    readOnly: true
-            volumes:
-              - name: systeminformation-compat
-                configMap:
-                  name: firecrawl-systeminformation-compat
+  - ../gvisor

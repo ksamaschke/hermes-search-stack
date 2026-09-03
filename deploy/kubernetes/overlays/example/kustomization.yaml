@@ -13,8 +13,9 @@ namespace: hermes-search
 
 resources:
   - namespace.yaml
-  # Swap for `../../base` if your cluster has no sandboxed RuntimeClass.
-  - ../sandboxed
+  # Select exactly one runtime path. Use `../gvisor` for runsc or `../../base`
+  # when the cluster has no sandboxed RuntimeClass.
+  - ../kata
   - ingress.yaml
 
 configMapGenerator:

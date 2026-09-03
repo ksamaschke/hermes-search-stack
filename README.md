@@ -160,20 +160,23 @@ state), so it is pinned to the agent's node with a `podAffinity` rule.
 ## Sandboxed runtimes
 
 The agent executes model-authored shell commands and Firecrawl renders
-untrusted web pages, so both are worth isolating at the kernel boundary. The
-`sandboxed` overlay applies a `RuntimeClass`:
+untrusted web pages, so both are worth isolating at the kernel boundary. Select
+the overlay matching the RuntimeClass installed in your cluster:
 
-```bash
-kubectl get runtimeclass          # see what your cluster actually has
+```yaml
+resources:
+  - ../kata       # RuntimeClass name: kata
+# - ../gvisor     # RuntimeClass name: gvisor / handler: runsc
+# - ../../base    # no sandboxed runtime
 ```
 
-It defaults to **gVisor** (`runsc`). For **Kata Containers**, change the
-`value:` fields in
-[deploy/kubernetes/overlays/sandboxed/kustomization.yaml](deploy/kubernetes/overlays/sandboxed/kustomization.yaml)
-to `kata` (or `kata-qemu` / `kata-fc`).
+The named overlays are deliberately separate: the gVisor path includes a
+runsc-specific Firecrawl CPU compatibility shim; the Kata path does not. The
+legacy `sandboxed` path remains as a backward-compatible alias for `gvisor`.
 
-Applying a RuntimeClass your cluster does not have leaves pods `Pending` with a
-`FailedCreatePodSandBox` event. Use the plain `base` if you have neither.
+Check available names with `kubectl get runtimeclass`. Applying a RuntimeClass
+your cluster does not have leaves pods `Pending` with a
+`FailedCreatePodSandBox` event.
 
 ## Running without the scraper
 
