@@ -109,6 +109,12 @@ spec:
             # Scale this in an overlay only after adding CPU capacity.
             - name: NUM_WORKERS_PER_QUEUE
               value: "1"
+            # Firecrawl 2.11's all-in-one harness otherwise starts five NuQ
+            # worker processes in addition to the API and legacy workers.
+            # One process is sufficient for this single-replica deployment and
+            # avoids exhausting a sandbox before the API port opens.
+            - name: NUQ_WORKER_COUNT
+              value: "1"
             - name: MAX_CONCURRENT_JOBS
               value: "3"
             - name: CRAWL_CONCURRENT_REQUESTS
