@@ -57,8 +57,6 @@ spec:
             # Browser Profiles".
             - name: profiles
               mountPath: /home/node/.camofox
-            - name: tmp
-              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /health
@@ -80,14 +78,20 @@ spec:
               memory: 2Gi
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
+            # NOT read-only: the image bakes its Camoufox/Firefox runtime
+            # under /home/node/.cache (~1.3GB) and writes there at browser
+            # launch time (fontconfig cache, glxtest/vulkantest probes,
+            # shader cache). These paths are undocumented and not confined
+            # to a single directory, so root-filesystem hardening is done
+            # via dropped capabilities and no-privilege-escalation instead
+            # of a read-only rootfs + enumerated writable mounts. Verified
+            # locally: readOnlyRootFilesystem: true reproducibly breaks
+            # camofox_navigate ("glxtest spawn failed", "Fontconfig: No
+            # writable cache directories", launchPersistentContext timeout);
+            # removing it and keeping every other restriction here fixes it.
             capabilities:
               drop: ["ALL"]
       volumes:
         - name: profiles
           persistentVolumeClaim:
             claimName: camofox-profiles
-        - name: tmp
-          emptyDir:
-            medium: Memory
-            sizeLimit: 512Mi
