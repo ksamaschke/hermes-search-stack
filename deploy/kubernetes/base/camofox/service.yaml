@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: camofox
+  labels:
+    app.kubernetes.io/name: camofox
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: camofox
+  ports:
+    - name: http
+      port: 9377
+      targetPort: http
+    - name: vnc
+      port: 6080
+      targetPort: vnc

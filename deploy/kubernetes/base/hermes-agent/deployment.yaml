@@ -180,6 +180,18 @@ spec:
                   name: hermes-agent-runtime
                   key: firecrawl-url
                   optional: true
+            - name: CAMOFOX_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: camofox-url
+                  optional: true
+            - name: CAMOFOX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: camofox-secret
+                  key: api-key
+                  optional: true
             # --- Model gateway credential -----------------------------------
             # Named by providers.hermes-search-stack.key_env in config.yaml.
             # The VALUE lives in a Secret that is never part of this repository.

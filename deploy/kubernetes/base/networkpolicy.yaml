@@ -109,6 +109,31 @@ spec:
             matchLabels:
               app.kubernetes.io/name: searxng
 ---
+# Camofox: local anti-detection browser backend for the agent's browser tool.
+# Only the agent talks to it; nothing else in or out of the stack needs it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: camofox-allow-agent
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: camofox
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+      ports:
+        - protocol: TCP
+          port: 9377
+        - protocol: TCP
+          port: 6080
+---
 # Hermes gateway API: Open WebUI is the model consumer; the WebUI probes health.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

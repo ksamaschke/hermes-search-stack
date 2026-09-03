@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - pvc.yaml
+
+# camofox-secret (key: api-key) is environment-specific and is provided by
+# the consuming overlay (e.g. an ExternalSecret or SOPS-encrypted Secret in
+# private GitOps). It is intentionally not generated here.

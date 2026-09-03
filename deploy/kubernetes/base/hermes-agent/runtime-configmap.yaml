@@ -18,6 +18,13 @@ data:
   # optional (the bundled instance runs with USE_DB_AUTHENTICATION=false).
   firecrawl-url: "http://firecrawl-api:3002"
 
+  # In-cluster Camofox (anti-detection browser). Set to "" and remove the
+  # camofox component to fall back to the agent's other browser backends
+  # (agent-browser CLI + local Chromium, or a cloud provider). The API key
+  # for CAMOFOX_URL lives in the camofox-secret Secret, referenced directly
+  # on the hermes-agent container, not here.
+  camofox-url: "http://camofox:9377"
+
   # Which provider serves web_extract. "firecrawl" uses the in-stack scraper.
   # Set to "" and remove the firecrawl component for a search-only install.
   extract-backend: "firecrawl"
