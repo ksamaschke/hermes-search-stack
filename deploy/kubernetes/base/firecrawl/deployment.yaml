@@ -370,6 +370,11 @@ spec:
               command: ["pg_isready", "-U", "postgres"]
             initialDelaySeconds: 15
             periodSeconds: 10
+            # Kubelet exec startup can exceed the implicit 1s default on a
+            # loaded node even while PostgreSQL is accepting connections. A
+            # false negative removes the Service endpoint and makes the
+            # Firecrawl harness exit on ECONNREFUSED.
+            timeoutSeconds: 10
           resources:
             requests:
               cpu: 100m
