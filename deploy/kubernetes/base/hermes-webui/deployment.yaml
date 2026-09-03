@@ -38,7 +38,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: hermes-webui
-          image: ghcr.io/nesquena/hermes-webui:0.38.5@sha256:bfd85f546c3aa282c65107ce15d348a9d87f2c8b6594d46ae60e0d06dd1964c9
+          image: ghcr.io/nesquena/hermes-webui:0.52.113@sha256:48ba6ee4a837079955c00e997b751065cc0324ae6eaa0f2fec592c8f4b2a746e
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

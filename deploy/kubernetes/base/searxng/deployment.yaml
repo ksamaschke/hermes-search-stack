@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searxng
-          image: docker.io/searxng/searxng:2026.8.29-d226b78bc@sha256:b36af7984b87191b595bc5301418ed6432c047668a4547ab531a7439b816fac3
+          image: docker.io/searxng/searxng:2026.9.3-8f452ee89@sha256:f5b40cdd30e658df7cc41ac4a5e7e221c5fe6936bd4c1b704f851004efbc1faa
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -123,7 +123,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: valkey
-          image: docker.io/valkey/valkey:8-alpine@sha256:e0eb7c480958d32bdc4357a74bdd70653ae15f2f9b4c93c4a5a9fad1dc471c84
+          image: docker.io/valkey/valkey:9.0.6-alpine@sha256:a1c759304d676744ad2527876442991e8070733ae6f49e2f35f11bdffe28b20b
           imagePullPolicy: IfNotPresent
           command: ["valkey-server", "--save", "", "--appendonly", "no"]
           ports:

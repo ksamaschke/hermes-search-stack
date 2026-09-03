@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/firecrawl/firecrawl:2.10.1@sha256:a7a8c9b2f81276c83a90d6d8877b2ecc953805c8feabe2cd5783be28e750cc88
+          image: ghcr.io/firecrawl/firecrawl:2.11.209-production@sha256:cebde741a0e6e8711f6714da0aab507f1285d3a083594728df23a31e19eeb7fb
           imagePullPolicy: IfNotPresent
           command: ["node", "dist/src/harness.js", "--start-docker"]
           ports:
@@ -173,7 +173,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: playwright
-          image: ghcr.io/firecrawl/playwright-service:latest@sha256:468009bae00911d40d7120d58489a1d529362c22c45585cb9076094fe61b0025
+          image: ghcr.io/firecrawl/playwright-service@sha256:df1a393ce8bfc3801570a826a9b0dcc400ae48789adb4a0ad9d6cbf0229b059b
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -233,7 +233,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: valkey
-          image: docker.io/valkey/valkey:8-alpine@sha256:e0eb7c480958d32bdc4357a74bdd70653ae15f2f9b4c93c4a5a9fad1dc471c84
+          image: docker.io/valkey/valkey:9.0.6-alpine@sha256:a1c759304d676744ad2527876442991e8070733ae6f49e2f35f11bdffe28b20b
           imagePullPolicy: IfNotPresent
           command: ["valkey-server", "--bind", "0.0.0.0", "--save", "", "--appendonly", "no"]
           ports:
@@ -285,7 +285,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: rabbitmq
-          image: docker.io/library/rabbitmq:4-alpine@sha256:4b93812804b41679198d340bfb644ff93f270a1658b28cb57dab6c85516a5da1
+          image: docker.io/library/rabbitmq:4.3.5-alpine@sha256:3486d98205df3d6395ed70e7924baa13b561cbac54116c0ddae5b0b7382bbabd
           imagePullPolicy: IfNotPresent
           ports:
             - name: amqp
@@ -348,7 +348,7 @@ spec:
         # NOT stock postgres: Firecrawl's NuQ queue needs its own extensions,
         # shipped in this purpose-built image.
         - name: postgres
-          image: ghcr.io/firecrawl/nuq-postgres:latest@sha256:aed86f62858f29bd971abddcdeb301c12888098d2cf5d33c1ba42b053bc460f6
+          image: ghcr.io/firecrawl/nuq-postgres@sha256:aed86f62858f29bd971abddcdeb301c12888098d2cf5d33c1ba42b053bc460f6
           imagePullPolicy: IfNotPresent
           ports:
             - name: postgres

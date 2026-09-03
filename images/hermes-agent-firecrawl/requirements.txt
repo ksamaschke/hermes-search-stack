@@ -1,4 +1,4 @@
-# Exact universal wheels from the Hermes v2026.8.27 lock. URL fragments make
+# Exact universal wheels tested with the Hermes v2026.8.31 base. URL fragments make
 # uv verify the artifact hashes while --no-deps leaves the pinned base
 # environment untouched.
 firecrawl-py @ https://files.pythonhosted.org/packages/07/33/97a53f155c2dec843afb0925b77d715b328134b0fe2fef142c0ff810ff49/firecrawl_py-4.17.0-py3-none-any.whl#sha256=04a3132e1bba7630a618bf19738f22404d955751d4a24f2912f0e220dac2cca0
