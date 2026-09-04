@@ -3,7 +3,7 @@
 A reusable, self-hosted **private search + agent stack** you can roll out with
 Argo CD on Kubernetes — or with Docker Compose on a plain VM.
 
-Four components, wired together so search and scraping never leave your
+Five components, wired together so search, scraping, and speech never leave your
 infrastructure:
 
 - **[Open WebUI](https://github.com/open-webui/open-webui)** — the chat frontend. Talks to Hermes Agent as an
@@ -14,7 +14,8 @@ infrastructure:
   thing can be configured from a browser instead of a terminal.
 - **[SearXNG](https://github.com/searxng/searxng)** — privacy-respecting metasearch across 70+ engines. The
   default (and only) search endpoint for both the agent and Open WebUI.
-
+- **[Kokoro Web](https://github.com/eduardolat/kokoro-web)** — local Kokoro-82M text-to-speech behind an
+  authenticated OpenAI-compatible API. Open WebUI uses it directly; no cloud API key is required.
 Plus two optional components:
 
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** (self-hosted) — the website scraper. Renders pages in an
@@ -192,6 +193,27 @@ configMapGenerator:
 patch it out). For Compose: `docker compose up -d --scale firecrawl-api=0`, or
 clear `HERMES_EXTRACT_BACKEND` and `WEB_LOADER_ENGINE` in `.env`.
 
+## Local text to speech with Kokoro
+
+Kokoro Web is enabled by default. It is reachable only from Open WebUI on
+Kubernetes; Compose additionally binds its diagnostic API to
+`127.0.0.1:5050`. The correct OpenAI-compatible base URL is
+`http://kokoro-web:3000/api/v1`, and synthesis is `POST /audio/speech` below
+that base URL.
+
+The server image uses `onnxruntime-node` on CPU. Running this image on an
+NVIDIA host does not change synthesis quality or enable CUDA; browser-side
+WebGPU is a separate execution path. Select quality with the requested model:
+
+- `model_fp16` (163 MB) is the quality-first default.
+- `model_q8f16` (86 MB) is the lower-footprint override for constrained hosts.
+- `af_heart` is the default US-English voice.
+
+Set `KOKORO_MODEL` and `KOKORO_VOICE` in Compose, or override `tts-model` and
+`tts-voice` in the `open-webui-runtime` ConfigMap for Kubernetes. Kokoro does
+not include a German voice; German text therefore needs another TTS engine if
+native pronunciation is required.
+
 ## Security notes
 
 - **Hermes WebUI is a remote shell.** It can run arbitrary commands as the
@@ -222,5 +244,5 @@ docs/                # secrets, SSO, troubleshooting
 ## License
 
 MIT — see [LICENSE](LICENSE). The deployed components keep their own licenses
-(Firecrawl is AGPL-3.0; SearXNG is AGPL-3.0; Open WebUI, Hermes Agent, and
-Hermes WebUI are MIT).
+(Firecrawl and SearXNG are AGPL-3.0; Open WebUI, Hermes Agent, Hermes WebUI,
+and the Kokoro Web wrapper are MIT; Kokoro's model weights are Apache-2.0).

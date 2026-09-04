@@ -2,12 +2,12 @@
 
 This repository contains **no secrets** and no environment-specific
 credentials. Every sensitive value is supplied at deploy time through one of
-five Kubernetes Secrets (or the Compose `.env`).
+six Kubernetes Secrets (or the Compose `.env`).
 
 Create them with [`scripts/create-secrets.sh`](../scripts/create-secrets.sh),
 or manage them with External Secrets, Sealed Secrets, SOPS, or Vault/OpenBao.
 
-## The five Secrets
+## The six Secrets
 
 ### `hermes-agent-secrets`
 
@@ -52,6 +52,13 @@ or manage them with External Secrets, Sealed Secrets, SOPS, or Vault/OpenBao.
 - **`postgres-password`** — password for Firecrawl's NuQ queue database.
   Internal to the stack; not reachable outside the namespace.
 
+### `kokoro-secrets`
+
+- **`api-key`** — local bearer token shared only by Kokoro Web and Open WebUI.
+  It authenticates the in-cluster TTS request and is not a cloud credential.
+  Rotate it for both workloads together; `ENABLE_PERSISTENT_CONFIG=false`
+  keeps Open WebUI on the deployment-provided value after rotation.
+
 ### `open-webui-oidc` (optional)
 
 Only needed for SSO. Consumed via `envFrom` with `optional: true`, so the
@@ -74,6 +81,9 @@ Manual equivalent:
 kubectl -n hermes-search create secret generic hermes-agent-secrets \
   --from-literal=api-server-key="$(openssl rand -hex 32)" \
   --from-literal=model-api-key="$YOUR_KEY"
+
+kubectl -n hermes-search create secret generic kokoro-secrets \
+  --from-literal=api-key="$(openssl rand -hex 32)"
 ```
 
 ## Verifying nothing leaked

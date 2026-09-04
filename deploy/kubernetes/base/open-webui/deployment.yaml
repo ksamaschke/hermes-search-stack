@@ -87,6 +87,32 @@ spec:
             - name: FIRECRAWL_API_KEY
               value: "self-hosted-no-auth"
 
+            # Environment-owned runtime settings must also win over values in
+            # an existing Open WebUI data volume after an upgrade or rotation.
+            - name: ENABLE_PERSISTENT_CONFIG
+              value: "false"
+
+            # --- Kokoro as the local OpenAI-compatible TTS engine -----------
+            - name: AUDIO_TTS_ENGINE
+              value: "openai"
+            - name: AUDIO_TTS_OPENAI_API_BASE_URL
+              value: "http://kokoro-web:3000/api/v1"
+            - name: AUDIO_TTS_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kokoro-secrets
+                  key: api-key
+            - name: AUDIO_TTS_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: open-webui-runtime
+                  key: tts-model
+            - name: AUDIO_TTS_VOICE
+              valueFrom:
+                configMapKeyRef:
+                  name: open-webui-runtime
+                  key: tts-voice
+
             - name: WEBUI_URL
               valueFrom:
                 configMapKeyRef:
@@ -165,3 +191,7 @@ data:
   # Set to "" (empty) to use Open WebUI's built-in requests loader instead.
   web-loader-engine: "firecrawl"
   firecrawl-url: "http://firecrawl-api:3002"
+  # Kokoro's server always runs on CPU. fp16 is the quality-first default;
+  # constrained environments can override this with model_q8f16.
+  tts-model: "model_fp16"
+  tts-voice: "af_heart"

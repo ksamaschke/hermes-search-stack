@@ -138,6 +138,27 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: kokoro-allow-open-webui
+  labels:
+    app.kubernetes.io/part-of: hermes-search-stack
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kokoro-web
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: open-webui
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: hermes-agent-allow-stack
   labels:
     app.kubernetes.io/part-of: hermes-search-stack

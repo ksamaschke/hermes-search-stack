@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create the five Secrets the Hermes Search Stack needs.
+# Create the Secrets the Hermes Search Stack needs.
 #
 #   ./scripts/create-secrets.sh <namespace> [--rotate]
 #
@@ -92,6 +92,13 @@ if skip_or_rotate firecrawl-secrets; then
   echo "  firecrawl-secrets created"
 fi
 
+# --- kokoro-secrets ----------------------------------------------------------
+if skip_or_rotate kokoro-secrets; then
+  kubectl -n "$NS" create secret generic kokoro-secrets \
+    --from-literal=api-key="$(openssl rand -hex 32)" >/dev/null
+  echo "  kokoro-secrets created"
+fi
+
 # --- camofox-secret (optional component) -------------------------------------
 if skip_or_rotate camofox-secret; then
   kubectl -n "$NS" create secret generic camofox-secret \
@@ -103,6 +110,5 @@ echo
 echo "done. Secrets in $NS:"
 kubectl -n "$NS" get secrets \
   hermes-agent-secrets hermes-webui-secrets open-webui-secrets \
-  searxng-secret firecrawl-secrets camofox-secret \
-  -o custom-columns=NAME:.metadata.name,KEYS:.data --no-headers 2>/dev/null \
-  | sed 's/map\[/ /; s/\]//' || true
+  searxng-secret firecrawl-secrets kokoro-secrets camofox-secret \
+  -o name 2>/dev/null || true

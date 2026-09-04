@@ -91,6 +91,39 @@ else
   bad "model discovery failed - check the /v1 suffix on OPENAI_API_BASE_URL"
 fi
 
+if kubectl -n "$NS" get deploy kokoro-web >/dev/null 2>&1; then
+  info "Kokoro TTS reachability from the Open WebUI pod"
+  # Keep the shared API key inside the Open WebUI pod. This is a lower-level
+  # network and synthesis diagnostic; end-to-end Open WebUI adapter acceptance
+  # is performed separately through Open WebUI itself.
+  TTS_BYTES=$(kubectl -n "$NS" exec deploy/open-webui -- sh -c 'python3 -c '\''
+import json, os, urllib.request
+payload = json.dumps({
+    "model": os.environ["AUDIO_TTS_MODEL"],
+    "voice": os.environ["AUDIO_TTS_VOICE"],
+    "input": "Kokoro text to speech is ready.",
+}).encode()
+request = urllib.request.Request(
+    os.environ["AUDIO_TTS_OPENAI_API_BASE_URL"] + "/audio/speech",
+    data=payload,
+    headers={
+        "Authorization": "Bearer " + os.environ["AUDIO_TTS_OPENAI_API_KEY"],
+        "Content-Type": "application/json",
+    },
+)
+with urllib.request.urlopen(request, timeout=300) as response:
+    audio = response.read()
+if not (audio.startswith(b"ID3") or audio.startswith(b"\\xff")):
+    raise SystemExit("response was not MP3 audio")
+print(len(audio))
+'\''' 2>/dev/null)
+  if [[ "${TTS_BYTES:-0}" =~ ^[0-9]+$ ]] && [[ "${TTS_BYTES:-0}" -gt 1000 ]]; then
+    ok "Kokoro returned ${TTS_BYTES} bytes of MP3 audio"
+  else
+    bad "Kokoro synthesis failed through Open WebUI (cold model download may still be running)"
+  fi
+fi
+
 if kubectl -n "$NS" get deploy firecrawl-api >/dev/null 2>&1; then
   info "Firecrawl scrape"
   SCRAPE=$(kubectl -n "$NS" exec deploy/firecrawl-api -- \
