@@ -50,6 +50,7 @@ set_if_empty HERMES_WEBUI_PASSWORD        "$(openssl rand -base64 24 | tr -d '/+
 set_if_empty OPEN_WEBUI_SECRET_KEY        "$(openssl rand -hex 32)"
 set_if_empty SEARXNG_SECRET               "$(openssl rand -hex 32)"
 set_if_empty FIRECRAWL_POSTGRES_PASSWORD  "$(openssl rand -hex 24)"
+set_if_empty KOKORO_API_KEY               "$(openssl rand -hex 32)"
 
 chmod 600 .env
 

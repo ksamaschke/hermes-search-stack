@@ -8,6 +8,7 @@ resources:
   - hermes-agent
   - hermes-webui
   - open-webui
+  - kokoro
   - camofox
   - networkpolicy.yaml
 

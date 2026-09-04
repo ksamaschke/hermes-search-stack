@@ -30,6 +30,8 @@ jobs:
           curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
           sudo mv kustomize /usr/local/bin/
           kustomize version
+      - name: install Python manifest parser
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
       - name: build base
         run: kustomize build deploy/kubernetes/base > /tmp/base.yaml && grep -c '^kind:' /tmp/base.yaml
       - name: build example overlay
@@ -77,6 +79,12 @@ jobs:
         run: python3 scripts/test-profile-env.py
       - name: test persistent config migration
         run: python3 scripts/test-bootstrap-config.py
+      - name: assert local Kokoro TTS wiring
+        run: >-
+          python3 scripts/check-kokoro-tts.py /tmp/base.yaml
+          deploy/compose/docker-compose.yml
+      - name: test Kokoro TTS wiring checks
+        run: python3 scripts/test-kokoro-tts.py
       - name: assert Hermes wrapper stays non-interactive
         run: |
           grep -A2 '^      - args:$' /tmp/base.yaml | grep -q -- '- sleep' || {

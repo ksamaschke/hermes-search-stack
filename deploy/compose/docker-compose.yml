@@ -177,12 +177,43 @@ services:
       - hermes-home:/opt/data
     networks: [stack]
 
+  # ------------------------------------------------------------- local TTS --
+  kokoro-cache-init:
+    image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+    restart: "no"
+    command: ["chown", "${HERMES_UID:-1000}:${HERMES_GID:-1000}", "/kokoro/cache"]
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN"]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - kokoro-cache:/kokoro/cache
+
+  kokoro-web:
+    image: ghcr.io/eduardolat/kokoro-web:v0.1.3@sha256:58202493d16e2b116a9593fc02adf8ceaca6e8a95ad72369733059707a7d3d17
+    restart: unless-stopped
+    depends_on:
+      kokoro-cache-init:
+        condition: service_completed_successfully
+    user: "${HERMES_UID:-1000}:${HERMES_GID:-1000}"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      # Optional direct API access for local diagnostics only.
+      - "127.0.0.1:5050:3000"
+    environment:
+      KW_SECRET_API_KEY: "${KOKORO_API_KEY:?set in .env - run ./init.sh}"
+      KW_PUBLIC_NO_TRACK: "true"
+    volumes:
+      - kokoro-cache:/kokoro/cache
+    networks: [stack]
+
   # -------------------------------------------------------------- chat UI --
   open-webui:
     image: ghcr.io/open-webui/open-webui:v0.11.3@sha256:751b617714b91e4cfd0186a509c72480c858e012976103b09a30dad053c36175
     restart: unless-stopped
     depends_on:
       - hermes-agent
+      - kokoro-web
     ports:
       - "${OPEN_WEBUI_BIND:-127.0.0.1}:3000:8080"
     environment:
@@ -196,6 +227,13 @@ services:
       WEB_LOADER_ENGINE: "${WEB_LOADER_ENGINE:-firecrawl}"
       FIRECRAWL_API_BASE_URL: "${FIRECRAWL_API_URL:-http://firecrawl-api:3002}"
       FIRECRAWL_API_KEY: "self-hosted-no-auth"
+      # Keep deployment-owned settings authoritative for existing data volumes.
+      ENABLE_PERSISTENT_CONFIG: "false"
+      AUDIO_TTS_ENGINE: "openai"
+      AUDIO_TTS_OPENAI_API_BASE_URL: "http://kokoro-web:3000/api/v1"
+      AUDIO_TTS_OPENAI_API_KEY: "${KOKORO_API_KEY:?set in .env - run ./init.sh}"
+      AUDIO_TTS_MODEL: "${KOKORO_MODEL:-model_fp16}"
+      AUDIO_TTS_VOICE: "${KOKORO_VOICE:-af_heart}"
       WEBUI_SECRET_KEY: "${OPEN_WEBUI_SECRET_KEY:?set in .env - run ./init.sh}"
       WEBUI_URL: "${OPEN_WEBUI_PUBLIC_URL:-http://localhost:3000}"
       ANONYMIZED_TELEMETRY: "false"
@@ -213,3 +251,4 @@ volumes:
   hermes-home:
   open-webui-data:
   firecrawl-pgdata:
+  kokoro-cache:

@@ -51,5 +51,8 @@ configMapGenerator:
 #   kubectl -n hermes-search create secret generic firecrawl-secrets \
 #     --from-literal=postgres-password="$(openssl rand -hex 24)"
 #
+#   kubectl -n hermes-search create secret generic kokoro-secrets \
+#     --from-literal=api-key="$(openssl rand -hex 32)"
+#
 # Or manage them with External Secrets / Sealed Secrets / SOPS.
 # See docs/secrets.md for the full contract.
