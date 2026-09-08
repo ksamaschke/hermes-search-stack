@@ -138,6 +138,7 @@ services:
       HERMES_MODEL_PROVIDER: "${HERMES_MODEL_PROVIDER:-hermes-search-stack}"
       HERMES_MODEL_DEFAULT: "${HERMES_MODEL_DEFAULT:?set your model in .env}"
       HERMES_MODEL_BASE_URL: "${HERMES_MODEL_BASE_URL:?set your gateway URL in .env}"
+      HERMES_MODEL_ROUTES_JSON: "${HERMES_MODEL_ROUTES_JSON:-{}}"
       HERMES_EXTRACT_BACKEND: "${HERMES_EXTRACT_BACKEND:-firecrawl}"
     volumes:
       - hermes-home:/opt/data

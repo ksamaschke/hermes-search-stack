@@ -17,11 +17,16 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+import yaml
+
 BOOTSTRAP = (
     Path(__file__).resolve().parents[1]
     / "deploy/kubernetes/base/hermes-agent/files/bootstrap.py"
 )
-PARTIAL_PATH = Path("/bootstrap/config.yaml.partial")
+PARTIAL_PATHS = {
+    Path("/bootstrap/config.yaml.partial"),
+    Path("/bootstrap/hermes-config.partial.yaml"),
+}
 
 DESIRED_CONFIG = textwrap.dedent(
     """\
@@ -39,6 +44,15 @@ DESIRED_CONFIG = textwrap.dedent(
       },
       "web": {
         "search_backend": "searxng"
+      },
+      "gateway": {
+        "platforms": {
+          "api_server": {
+            "extra": {
+              "model_routes": ${HERMES_MODEL_ROUTES_JSON}
+            }
+          }
+        }
       }
     }
     """
@@ -76,16 +90,27 @@ class FakeYamlError(Exception):
 
 
 def fake_yaml_module() -> types.ModuleType:
+    """Provide a probeable YAML facade while delegating parsing to PyYAML."""
+    real_yaml = yaml
     module = types.ModuleType("yaml")
 
     def safe_load(raw: str) -> Any:
         try:
-            return json.loads(raw)
-        except (json.JSONDecodeError, TypeError) as exc:
+            return real_yaml.safe_load(raw)
+        except real_yaml.YAMLError as exc:
             raise FakeYamlError(str(exc)) from exc
 
-    def safe_dump(value: Any, *, sort_keys: bool = True) -> str:
-        return json.dumps(value, indent=2, sort_keys=sort_keys) + "\n"
+    def safe_dump(
+        value: Any,
+        *,
+        default_flow_style: bool = False,
+        sort_keys: bool = True,
+    ) -> str:
+        return real_yaml.safe_dump(
+            value,
+            default_flow_style=default_flow_style,
+            sort_keys=sort_keys,
+        )
 
     setattr(module, "YAMLError", FakeYamlError)
     setattr(module, "safe_load", safe_load)
@@ -94,14 +119,19 @@ def fake_yaml_module() -> types.ModuleType:
 
 
 class BootstrapConfigTests(unittest.TestCase):
-    def run_bootstrap(self, home: Path) -> tuple[dict[str, Any], str]:
+    def run_bootstrap(
+        self,
+        home: Path,
+        *,
+        routes_json: str | None = None,
+    ) -> tuple[dict[str, Any], str]:
         original_read_text = Path.read_text
         yaml_before = sys.modules.get("yaml")
         yaml_was_loaded = "yaml" in sys.modules
         fake_yaml = fake_yaml_module()
 
         def read_text(path: Path, *args: object, **kwargs: object) -> str:
-            if path == PARTIAL_PATH:
+            if path in PARTIAL_PATHS:
                 return DESIRED_CONFIG
             return original_read_text(path, *args, **kwargs)
 
@@ -109,6 +139,18 @@ class BootstrapConfigTests(unittest.TestCase):
             "HERMES_HOME": str(home),
             "API_SERVER_KEY": TEST_API_KEY,
             "HERMES_GATEWAY_API_KEY": TEST_MODEL_KEY,
+            "HERMES_MODEL_ROUTES_JSON": (
+                routes_json
+                if routes_json is not None
+                else json.dumps(
+                    {
+                        "gpt-5.6-luna": {
+                            "model": "homelab/gpt-5.6-luna",
+                            "provider": "hermes-search-stack",
+                        }
+                    }
+                )
+            ),
         }
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -138,15 +180,56 @@ class BootstrapConfigTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertNotIn(value, output)
 
+    def test_invalid_model_routes_json_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(
+                SystemExit,
+                "HERMES_MODEL_ROUTES_JSON is not valid JSON",
+            ):
+                self.run_bootstrap(Path(tmp), routes_json="not-json")
+
+    def test_model_routes_are_rendered_as_a_mapping(self) -> None:
+        routes_json = json.dumps(
+            {
+                "gpt-5.6-luna": {
+                    "model": "homelab/gpt-5.6-luna",
+                    "provider": "hermes-search-stack",
+                }
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            namespace, _ = self.run_bootstrap(home, routes_json=routes_json)
+            routes = namespace["merged"]["gateway"]["platforms"]["api_server"]["extra"]["model_routes"]
+            self.assertEqual(routes["gpt-5.6-luna"], {
+                "model": "homelab/gpt-5.6-luna",
+                "provider": "hermes-search-stack",
+            })
+            self.assertIsInstance(routes, dict)
+            self.assertNotIsInstance(routes, str)
+
+            persisted = yaml.safe_load((home / "config.yaml").read_text())
+            persisted_routes = persisted["gateway"]["platforms"]["api_server"]["extra"]["model_routes"]
+            self.assertIsInstance(persisted_routes, dict)
+            self.assertEqual(persisted_routes, routes)
+
+    def test_non_object_model_routes_json_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(
+                SystemExit,
+                "HERMES_MODEL_ROUTES_JSON must decode to a JSON object",
+            ):
+                self.run_bootstrap(Path(tmp), routes_json="[]")
+
     def test_named_provider_migration_retires_legacy_model_auth_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             (home / "config.yaml").write_text(CURRENT_CONFIG)
 
-            first, first_output = self.run_bootstrap(home)
+            first, first_output = self.run_bootstrap(home, routes_json="{}")
             merged = first["merged"]
             self.assertIsInstance(merged, dict)
-            persisted = json.loads((home / "config.yaml").read_text())
+            persisted = yaml.safe_load((home / "config.yaml").read_text())
             self.assertEqual(persisted, merged)
             model = merged["model"]
             self.assertNotIn("base_url", model)
@@ -155,6 +238,9 @@ class BootstrapConfigTests(unittest.TestCase):
             self.assertEqual(model["user_option"], "preserved")
             self.assertIn("hermes-search-stack", merged["providers"])
             self.assertIn("user-provider", merged["providers"])
+            routes = merged["gateway"]["platforms"]["api_server"]["extra"]["model_routes"]
+            self.assertEqual(routes, {})
+            self.assertIsInstance(routes, dict)
             migration_lines = [
                 line
                 for line in first_output.splitlines()
@@ -170,7 +256,7 @@ class BootstrapConfigTests(unittest.TestCase):
             self.assert_output_has_no_values(first_output)
             first_persisted = (home / "config.yaml").read_text()
 
-            second, second_output = self.run_bootstrap(home)
+            second, second_output = self.run_bootstrap(home, routes_json="{}")
             self.assertEqual(second["merged"], merged)
             self.assertEqual((home / "config.yaml").read_text(), first_persisted)
             self.assertNotIn("dropped legacy model.", second_output)

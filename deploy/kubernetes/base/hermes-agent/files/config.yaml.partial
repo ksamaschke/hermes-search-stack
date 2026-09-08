@@ -92,6 +92,9 @@ gateway:
         # 127.0.0.1 is only reachable inside the pod's own netns.
         host: 0.0.0.0
         port: 8642
+        # Bare aliases advertised to OpenAI-compatible clients. Compose passes
+        # a JSON object through HERMES_MODEL_ROUTES_JSON; the example defaults to {}.
+        model_routes: ${HERMES_MODEL_ROUTES_JSON}
 
 web:
   # Explicit per-capability routing. This MUST be set explicitly:

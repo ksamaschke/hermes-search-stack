@@ -69,6 +69,11 @@ spec:
                 configMapKeyRef:
                   name: hermes-agent-runtime
                   key: model-base-url
+            - name: HERMES_MODEL_ROUTES_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: hermes-agent-runtime
+                  key: model-routes
             - name: HERMES_EXTRACT_BACKEND
               valueFrom:
                 configMapKeyRef:

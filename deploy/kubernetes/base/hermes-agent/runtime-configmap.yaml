@@ -42,6 +42,9 @@ data:
   model-provider: "hermes-search-stack"
   model-default: "REPLACE_ME"
   model-base-url: "REPLACE_ME"
+  # JSON object of bare API-server aliases. The base is intentionally empty;
+  # environment overlays own the advertised models and their provider routes.
+  model-routes: "{}"
 
   # Firecrawl's structured extractor uses the gateway too, but it may require a
   # different model from the conversational agent. In particular, the pinned

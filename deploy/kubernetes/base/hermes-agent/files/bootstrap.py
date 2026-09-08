@@ -8,6 +8,7 @@ Runs as an init container on every pod start. Idempotent by design:
   provider config contains its env-var name. The API-server key is synchronized
   to both owner-only files because the platform enrolment contract requires it.
 """
+import json
 import os
 import pathlib
 import sys
@@ -26,16 +27,28 @@ home.mkdir(parents=True, exist_ok=True)
 cfg_path = home / "config.yaml"
 partial_raw = pathlib.Path("/bootstrap/config.yaml.partial").read_text()
 
-# Expand ${VAR} against the environment so overlays can drive values
-# without templating the whole manifest.
+routes_json = os.environ.get("HERMES_MODEL_ROUTES_JSON", "{}")
+try:
+    routes = json.loads(routes_json)
+except json.JSONDecodeError as exc:
+    sys.exit(f"HERMES_MODEL_ROUTES_JSON is not valid JSON: {exc.msg}")
+if not isinstance(routes, dict):
+    sys.exit("HERMES_MODEL_ROUTES_JSON must decode to a JSON object")
+partial_raw = partial_raw.replace(
+    "${HERMES_MODEL_ROUTES_JSON}",
+    yaml.safe_dump(routes, default_flow_style=True, sort_keys=False).strip(),
+)
+
 for key, value in os.environ.items():
+    if key == "HERMES_MODEL_ROUTES_JSON":
+        continue
     partial_raw = partial_raw.replace("${" + key + "}", value)
 
 desired = yaml.safe_load(partial_raw) or {}
 
 # Guard against duplicate top-level keys in the partial. PyYAML silently keeps
 # the LAST occurrence, so a second `security:` block further down the file
-# quietly discarded allow_lazy_installs and the gateway kept pip-installing at
+# quietly discards allow_lazy_installs and the gateway keeps pip-installing at
 # boot. Fail loudly instead of shipping a config that lost half its keys.
 _seen, _dupes = set(), set()
 for _line in partial_raw.splitlines():
@@ -57,14 +70,16 @@ if cfg_path.exists():
         print(f"existing config unparseable, moved to {backup}", flush=True)
         current = {}
 
+
 def deep_merge(base: dict, overlay: dict) -> dict:
     out = dict(base)
-    for k, v in overlay.items():
-        if isinstance(v, dict) and isinstance(out.get(k), dict):
-            out[k] = deep_merge(out[k], v)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = deep_merge(out[key], value)
         else:
-            out[k] = v
+            out[key] = value
     return out
+
 
 merged = deep_merge(current, desired)
 
@@ -73,11 +88,16 @@ merged = deep_merge(current, desired)
 def prune(node):
     if isinstance(node, dict):
         return {
-            k: prune(v)
-            for k, v in node.items()
-            if not (isinstance(v, str) and v.startswith("${") and v.endswith("}"))
+            key: prune(value)
+            for key, value in node.items()
+            if not (
+                isinstance(value, str)
+                and value.startswith("${")
+                and value.endswith("}")
+            )
         }
     return node
+
 
 merged = prune(merged)
 
@@ -122,12 +142,14 @@ MANAGED_PATHS = [
     ("gateway", "platforms", "api_server"),
 ]
 
+
 def get_path(node, path):
     for key in path:
         if not isinstance(node, dict) or key not in node:
             return None, False
         node = node[key]
     return node, True
+
 
 def set_path(node, path, value):
     for key in path[:-1]:
@@ -137,6 +159,7 @@ def set_path(node, path, value):
             node[key] = nxt
         node = nxt
     node[path[-1]] = value
+
 
 for path in MANAGED_PATHS:
     want, present = get_path(desired, path)
