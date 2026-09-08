@@ -5,9 +5,6 @@
 #   ./scripts/verify.sh <namespace>
 set -uo pipefail
 
-# This script is a diagnostic against a live namespace. Keep all checks running
-# so one cold or malformed optional integration does not hide the other evidence.
-
 NS="${1:-hermes-search}"
 FAIL=0
 
@@ -148,21 +145,9 @@ if kubectl -n "$NS" get deploy firecrawl-api >/dev/null 2>&1; then
   if printf '%s' "$EXTRACT" | python3 -c '
 import json, sys
 payload = json.load(sys.stdin)
-
-
-def title_from(value):
-    if isinstance(value, dict):
-        if value.get("title") == "Example Domain":
-            return True
-        return any(title_from(item) for item in value.values())
-    if isinstance(value, list):
-        return any(title_from(item) for item in value)
-    return False
-
-
-raise SystemExit(0 if title_from(payload) else 1)
+raise SystemExit(0 if payload["data"]["json"]["title"] == "Example Domain" else 1)
 ' 2>/dev/null; then
-    ok "Firecrawl extracted title = Example Domain"
+    ok "Firecrawl extracted data.json.title = Example Domain"
   else
     bad "Firecrawl JSON extraction failed - check model gateway env wiring"
   fi

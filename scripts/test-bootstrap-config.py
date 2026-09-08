@@ -144,8 +144,8 @@ class BootstrapConfigTests(unittest.TestCase):
                 if routes_json is not None
                 else json.dumps(
                     {
-                        "gpt-5.6-luna": {
-                            "model": "homelab/gpt-5.6-luna",
+                        "example-alias": {
+                            "model": "example-backend/model",
                             "provider": "hermes-search-stack",
                         }
                     }
@@ -191,8 +191,8 @@ class BootstrapConfigTests(unittest.TestCase):
     def test_model_routes_are_rendered_as_a_mapping(self) -> None:
         routes_json = json.dumps(
             {
-                "gpt-5.6-luna": {
-                    "model": "homelab/gpt-5.6-luna",
+                "example-alias": {
+                    "model": "example-backend/model",
                     "provider": "hermes-search-stack",
                 }
             }
@@ -201,8 +201,8 @@ class BootstrapConfigTests(unittest.TestCase):
             home = Path(tmp)
             namespace, _ = self.run_bootstrap(home, routes_json=routes_json)
             routes = namespace["merged"]["gateway"]["platforms"]["api_server"]["extra"]["model_routes"]
-            self.assertEqual(routes["gpt-5.6-luna"], {
-                "model": "homelab/gpt-5.6-luna",
+            self.assertEqual(routes["example-alias"], {
+                "model": "example-backend/model",
                 "provider": "hermes-search-stack",
             })
             self.assertIsInstance(routes, dict)
