@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -52,7 +53,8 @@ def render(config):
     searxng = url(config['searxng_endpoint'])
     if endpoint.startswith('http:'):
         raise ValueError('managed external endpoint requires HTTPS at the authorized routing layer')
-    rendered = subprocess.run(['kubectl', 'kustomize', str(ROOT / 'deploy/kubernetes/base/firecrawl')],
+    builder = ['kustomize', 'build'] if shutil.which('kustomize') else ['kubectl', 'kustomize']
+    rendered = subprocess.run(builder + [str(ROOT / 'deploy/kubernetes/base/firecrawl')],
                               check=True, capture_output=True, text=True).stdout
     manifests = list(yaml.safe_load_all(rendered))
     for obj in manifests:
@@ -128,8 +130,9 @@ def check(endpoint, token=None, timeout=45):
                 result['results'] = len(hits)
             else:
                 markdown = content.get('markdown', '') if isinstance(content, dict) else ''
-                if 'example domain' not in markdown.lower():
-                    raise ValueError('scrape did not contain expected Example Domain text')
+                expected = ('example domain', 'this domain is for use in documentation examples')
+                if not any(text in markdown.lower() for text in expected):
+                    raise ValueError('scrape did not contain expected example-domain documentation text')
                 result['markdown_chars'] = len(markdown)
         results.append(result)
     return {'checks': results, 'success': True}
